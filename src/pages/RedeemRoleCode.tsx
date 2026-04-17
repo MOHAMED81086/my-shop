@@ -26,14 +26,14 @@ export default function RedeemRoleCode() {
 
       if (masterCodeSnap.exists() || code === 'A7X-9KQ3-ZM81-PRO-MYSTORE-X99-ULTRA') {
         sessionStorage.setItem('adminSession', 'true');
-        await updateDoc(doc(db, 'users', user.uid), {
+        await updateDoc(doc(db, 'users', user.id), {
           originalRole: profile?.role === 'admin' ? profile.originalRole || 'buyer' : profile?.role,
           role: 'admin',
           masterCode: code,
           permissions: ['manage_users', 'manage_orders', 'manage_wallet', 'manage_recharge', 'manage_transfers', 'manage_ranks', 'view_dashboard', 'block_users', 'manage_products', 'manage_settings']
         });
         await addDoc(collection(db, 'logs'), {
-          userId: user.uid,
+          userId: user.id,
           action: 'activate_master_code',
           createdAt: serverTimestamp()
         });
@@ -58,7 +58,7 @@ export default function RedeemRoleCode() {
       const codeData = codeDoc.data();
 
       // Check if code is targeted to a specific user
-      if (codeData.targetUserId && codeData.targetUserId !== profile?.numericId && codeData.targetUserId !== user.uid) {
+      if (codeData.targetUserId && codeData.targetUserId !== profile?.numericId && codeData.targetUserId !== user.id) {
         toast.error('هذا الكود مخصص لمستخدم آخر');
         setLoading(false);
         return;
@@ -75,7 +75,7 @@ export default function RedeemRoleCode() {
           ? new Date(Date.now() + codeData.durationHours * 60 * 60 * 1000).toISOString()
           : null;
 
-        await updateDoc(doc(db, 'users', user.uid), {
+        await updateDoc(doc(db, 'users', user.id), {
           role: codeData.roleKey,
           roleExpiryDate: expiryDate,
           originalRole: profile?.role === 'admin' ? profile.originalRole || 'buyer' : profile?.role
@@ -87,7 +87,7 @@ export default function RedeemRoleCode() {
         });
 
         await addDoc(collection(db, 'logs'), {
-          userId: user.uid,
+          userId: user.id,
           action: 'activate_role_code',
           code: code.toUpperCase(),
           role: codeData.roleKey,

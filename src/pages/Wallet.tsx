@@ -21,7 +21,7 @@ export default function Wallet() {
 
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'wallet_transactions'), where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'wallet_transactions'), where('userId', '==', user.id), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
@@ -39,7 +39,7 @@ export default function Wallet() {
       toast.error('رصيد غير كافٍ أو مبلغ غير صالح');
       return;
     }
-    if (transferUserId === user.uid) {
+    if (transferUserId === user.id) {
       toast.error('لا يمكنك التحويل لنفسك');
       return;
     }
@@ -56,7 +56,7 @@ export default function Wallet() {
       }
 
       // Deduct from sender immediately to hold funds
-      const senderRef = doc(db, 'users', user.uid);
+      const senderRef = doc(db, 'users', user.id);
       await updateDoc(senderRef, {
         wallet_balance: increment(-amount)
       });
@@ -65,7 +65,7 @@ export default function Wallet() {
 
       // Log transaction for sender as pending
       await addDoc(collection(db, 'wallet_transactions'), {
-        userId: user.uid,
+        userId: user.id,
         type: 'transfer',
         amount: -amount,
         status: 'pending',

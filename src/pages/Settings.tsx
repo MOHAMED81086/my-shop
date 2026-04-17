@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/useAuthStore';
 import { doc, updateDoc, collection, getDocs, query, where, addDoc, serverTimestamp, onSnapshot, getDoc } from 'firebase/firestore';
-import { db, auth } from '../lib/firebase';
+import { db } from '../lib/firebase';
 import { User, Globe, Key, Shield, Bell, LogOut, Save, Award, Crown, MessageSquare, ArrowRight, Share2, Copy, CheckCircle, Smartphone, Download, FileText } from 'lucide-react';
 
-import { signOut, updatePassword } from 'firebase/auth';
 import toast from 'react-hot-toast';
 import { getLevelTitle } from '../lib/utils';
 import { Link } from 'react-router-dom';
 
 export default function Settings() {
-  const { user, profile } = useAuthStore();
+  const { user, profile, logout } = useAuthStore();
   const [activeTab, setActiveTab] = useState('account');
   const [loading, setLoading] = useState(false);
 
@@ -105,7 +104,13 @@ export default function Settings() {
         }
       }
 
-      await updateDoc(doc(db, 'users', user.uid), { name, photoUrl });
+      await updateDoc(doc(db, 'users', profile.userId), { name, photoUrl });
+      
+      // Update local storage
+      const users = JSON.parse(localStorage.getItem('users') || '[]');
+      const updatedUsers = users.map((u: any) => u.id === profile.userId ? { ...u, name, photoUrl } : u);
+      localStorage.setItem('users', JSON.stringify(updatedUsers));
+      
       toast.success('تم حفظ التعديلات بنجاح');
     } catch (error) {
       console.error(error);
@@ -115,20 +120,20 @@ export default function Settings() {
   };
 
   const handleSaveLanguage = async (lang: string) => {
-    if (!user) return;
+    if (!profile) return;
     setLanguage(lang);
     try {
-      await updateDoc(doc(db, 'users', user.uid), { language: lang });
+      await updateDoc(doc(db, 'users', profile.userId), { language: lang });
     } catch (error) {
       console.error(error);
     }
   };
 
   const handleExitRole = async () => {
-    if (!user || !profile) return;
+    if (!profile) return;
     setLoading(true);
     try {
-      await updateDoc(doc(db, 'users', user.uid), {
+      await updateDoc(doc(db, 'users', profile.userId), {
         role: 'buyer',
         permissions: [],
         originalRole: null,
@@ -136,7 +141,7 @@ export default function Settings() {
         masterCode: null
       });
       await addDoc(collection(db, 'logs'), {
-        userId: user.uid,
+        userId: profile.userId,
         action: 'exit_role',
         previousRole: profile.role,
         createdAt: serverTimestamp()
@@ -156,11 +161,11 @@ export default function Settings() {
   };
 
   const handleSaveNotifications = async (key: keyof typeof notifications, value: boolean) => {
-    if (!user) return;
+    if (!profile) return;
     const newSettings = { ...notifications, [key]: value };
     setNotifications(newSettings);
     try {
-      await updateDoc(doc(db, 'users', user.uid), { notificationSettings: newSettings });
+      await updateDoc(doc(db, 'users', profile.userId), { notificationSettings: newSettings });
     } catch (error) {
       console.error(error);
     }
@@ -168,19 +173,22 @@ export default function Settings() {
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth.currentUser || !newPassword) return;
+    if (!profile || !newPassword) return;
     setLoading(true);
     try {
-      await updatePassword(auth.currentUser, newPassword);
+      // Update local storage
+      const users = JSON.parse(localStorage.getItem('users') || '[]');
+      const updatedUsers = users.map((u: any) => u.id === profile.userId ? { ...u, password: newPassword } : u);
+      localStorage.setItem('users', JSON.stringify(updatedUsers));
+      
+      // Optional: Firestore sync (though password isn't usually there for security, but the user included it in the model)
+      await updateDoc(doc(db, 'users', profile.userId), { password: newPassword });
+      
       toast.success('تم تغيير كلمة المرور بنجاح');
       setNewPassword('');
     } catch (error: any) {
       console.error(error);
-      if (error.code === 'auth/requires-recent-login') {
-        toast.error('يرجى تسجيل الخروج والدخول مرة أخرى لتغيير كلمة المرور');
-      } else {
-        toast.error('حدث خطأ أثناء تغيير كلمة المرور');
-      }
+      toast.error('حدث خطأ أثناء تغيير كلمة المرور');
     }
     setLoading(false);
   };
@@ -189,13 +197,14 @@ export default function Settings() {
     try {
       if (profile?.role === 'admin') {
         const revertedRole = profile.originalRole || 'buyer';
-        await updateDoc(doc(db, 'users', user!.uid), {
+        await updateDoc(doc(db, 'users', profile.userId), {
           role: revertedRole,
           masterCode: null
         });
       }
       sessionStorage.removeItem('adminSession');
-      await signOut(auth);
+      logout();
+      window.location.reload();
     } catch (error) {
       console.error(error);
     }
@@ -203,7 +212,7 @@ export default function Settings() {
 
   const handleActivateCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !code) return;
+    if (!profile || !code) return;
     setLoading(true);
     try {
       // Check for master code via Firestore or hardcoded fallback
@@ -213,14 +222,14 @@ export default function Settings() {
 
       if (masterCodeSnap.exists() || code === 'A7X-9KQ3-ZM81-PRO-MYSTORE-X99-ULTRA') {
         sessionStorage.setItem('adminSession', 'true');
-        await updateDoc(doc(db, 'users', user.uid), {
+        await updateDoc(doc(db, 'users', profile.userId), {
           originalRole: profile?.role === 'admin' ? profile.originalRole || 'buyer' : profile?.role,
           role: 'admin',
           masterCode: code,
           permissions: ['manage_users', 'manage_orders', 'manage_wallet', 'manage_recharge', 'manage_transfers', 'manage_ranks', 'view_dashboard', 'block_users', 'manage_products', 'manage_settings']
         });
         await addDoc(collection(db, 'logs'), {
-          userId: user.uid,
+          userId: profile.userId,
           action: 'activate_master_code',
           createdAt: serverTimestamp()
         });
@@ -240,12 +249,12 @@ export default function Settings() {
       if (snap.empty) {
         // Fallback for MERCHANT-XXXX hardcoded codes
         if (cleanCode.startsWith('MERCHANT-')) {
-          await updateDoc(doc(db, 'users', user.uid), {
+          await updateDoc(doc(db, 'users', profile.userId), {
             role: 'merchant',
             originalRole: profile?.role === 'admin' ? profile.originalRole || 'buyer' : profile?.role
           });
           await addDoc(collection(db, 'logs'), {
-            userId: user.uid,
+            userId: profile.userId,
             action: 'activate_merchant_code',
             code: cleanCode,
             createdAt: serverTimestamp()
@@ -266,7 +275,7 @@ export default function Settings() {
       const codeData = codeDoc.data();
 
       // Security check for targeted codes
-      if (codeData.targetUserId && codeData.targetUserId !== user.uid && codeData.targetUserId !== profile.numericId) {
+      if (codeData.targetUserId && codeData.targetUserId !== profile.userId && codeData.targetUserId !== profile.numericId) {
         toast.error('هذا الكود مخصص لمستخدم آخر');
         setLoading(false);
         return;
@@ -283,7 +292,7 @@ export default function Settings() {
           ? new Date(Date.now() + codeData.durationHours * 60 * 60 * 1000).toISOString()
           : null;
 
-        await updateDoc(doc(db, 'users', user.uid), {
+        await updateDoc(doc(db, 'users', profile.userId), {
           role: codeData.roleKey,
           roleExpiryDate: expiryDate,
           originalRole: profile?.role === 'admin' ? profile.originalRole || 'buyer' : profile?.role
@@ -295,7 +304,7 @@ export default function Settings() {
         });
 
         await addDoc(collection(db, 'logs'), {
-          userId: user.uid,
+          userId: profile.userId,
           action: 'activate_role_code',
           code: cleanCode,
           role: codeData.roleKey,
@@ -321,7 +330,7 @@ export default function Settings() {
   };
   
   const handleDirectUpgrade = async (role: string, cost: number) => {
-    if (!user || !profile) return;
+    if (!profile) return;
     if (profile.role === role) {
       toast.error('أنت بالفعل تمتلك هذه الرتبة');
       return;
@@ -333,14 +342,14 @@ export default function Settings() {
 
     setLoading(true);
     try {
-      await updateDoc(doc(db, 'users', user.uid), {
+      await updateDoc(doc(db, 'users', profile.userId), {
         role: role,
         wallet_balance: profile.wallet_balance - cost,
         originalRole: profile.role === 'admin' ? profile.originalRole || 'buyer' : profile.role
       });
       
       await addDoc(collection(db, 'wallet_transactions'), {
-        userId: user.uid,
+        userId: profile.userId,
         type: 'upgrade',
         amount: -cost,
         status: 'completed',
@@ -358,7 +367,7 @@ export default function Settings() {
 
   const handleApplyReferral = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !profile || !referralInput) return;
+    if (!profile || !referralInput) return;
     if (referralInput === profile.referralCode) {
       toast.error('لا يمكنك استخدام كود الإحالة الخاص بك');
       return;
@@ -380,7 +389,7 @@ export default function Settings() {
       }
 
       const referrerId = snap.docs[0].id;
-      await updateDoc(doc(db, 'users', user.uid), {
+      await updateDoc(doc(db, 'users', profile.userId), {
         referredBy: referrerId
       });
 

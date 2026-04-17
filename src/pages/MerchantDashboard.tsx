@@ -73,14 +73,14 @@ export default function MerchantDashboard() {
 
     setUpgradeLoading(true);
     try {
-      await updateDoc(doc(db, 'users', user.uid), {
+      await updateDoc(doc(db, 'users', user.id), {
         role: 'vip_merchant',
         wallet_balance: profile.wallet_balance - cost,
         originalRole: profile.role === 'admin' ? profile.originalRole || 'merchant' : profile.role
       });
       
       await addDoc(collection(db, 'wallet_transactions'), {
-        userId: user.uid,
+        userId: user.id,
         type: 'upgrade',
         amount: -cost,
         status: 'completed',
@@ -98,8 +98,8 @@ export default function MerchantDashboard() {
 
   useEffect(() => {
     // Load saved withdraw method
-    const savedMethod = localStorage.getItem(`withdrawMethod_${user?.uid}`);
-    const savedPhone = localStorage.getItem(`withdrawPhone_${user?.uid}`);
+    const savedMethod = localStorage.getItem(`withdrawMethod_${user?.id}`);
+    const savedPhone = localStorage.getItem(`withdrawPhone_${user?.id}`);
     if (savedMethod) setWithdrawMethodId(savedMethod);
     if (savedPhone) setWithdrawPhone(savedPhone);
   }, [user]);
@@ -138,23 +138,23 @@ export default function MerchantDashboard() {
     const initDashboard = async () => {
       const isCustom = await checkCustomRank();
       if (user && (isMerchantRole || isCustom)) {
-        const q = query(collection(db, 'products'), where('merchantId', '==', user.uid));
+        const q = query(collection(db, 'products'), where('merchantId', '==', user.id));
         const unsubscribe = onSnapshot(q, (snapshot) => {
           setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
 
-        const qW = query(collection(db, 'withdrawal_requests'), where('merchantId', '==', user.uid), orderBy('createdAt', 'desc'));
+        const qW = query(collection(db, 'withdrawal_requests'), where('merchantId', '==', user.id), orderBy('createdAt', 'desc'));
         const unsubW = onSnapshot(qW, (snapshot) => {
           setWithdrawals(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
 
-        const qAds = query(collection(db, 'ads'), where('ownerId', '==', user.uid), orderBy('createdAt', 'desc'));
+        const qAds = query(collection(db, 'ads'), where('ownerId', '==', user.id), orderBy('createdAt', 'desc'));
         const unsubAds = onSnapshot(qAds, (snapshot) => {
           setAds(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
 
         // Fetch sales for analytics
-        const qSales = query(collection(db, 'orders'), where('merchantId', '==', user.uid), orderBy('createdAt', 'desc'));
+        const qSales = query(collection(db, 'orders'), where('merchantId', '==', user.id), orderBy('createdAt', 'desc'));
         const unsubSales = onSnapshot(qSales, (snapshot) => {
           const orders = snapshot.docs.map(doc => doc.data());
           // Group by date for chart
@@ -273,7 +273,7 @@ export default function MerchantDashboard() {
       } else {
         await addDoc(collection(db, 'products'), {
           ...productData,
-          merchantId: user.uid,
+          merchantId: user.id,
           ratingAverage: 0,
           createdAt: serverTimestamp()
         });
@@ -402,8 +402,8 @@ export default function MerchantDashboard() {
     }
 
     // Save to localStorage
-    localStorage.setItem(`withdrawMethod_${user.uid}`, withdrawMethodId);
-    localStorage.setItem(`withdrawPhone_${user.uid}`, withdrawPhone);
+    localStorage.setItem(`withdrawMethod_${user.id}`, withdrawMethodId);
+    localStorage.setItem(`withdrawPhone_${user.id}`, withdrawPhone);
 
     setWithdrawLoading(true);
     try {
@@ -414,7 +414,7 @@ export default function MerchantDashboard() {
       const selectedMethod = withdrawalMethods.find(m => m.id === withdrawMethodId);
 
       await addDoc(collection(db, 'withdrawal_requests'), {
-        merchantId: user.uid,
+        merchantId: user.id,
         amount,
         fee,
         finalAmount,
@@ -425,7 +425,7 @@ export default function MerchantDashboard() {
         createdAt: serverTimestamp()
       });
 
-      await updateDoc(doc(db, 'users', user.uid), {
+      await updateDoc(doc(db, 'users', user.id), {
         merchant_balance: (profile.merchant_balance || 0) - amount
       });
 
@@ -467,19 +467,19 @@ export default function MerchantDashboard() {
         productId: adType === 'product' ? adProductId : null,
         views: views,
         viewsLeft: views,
-        ownerId: user.uid,
+        ownerId: user.id,
         status: 'active',
         createdAt: serverTimestamp()
       });
 
       if (cost > 0) {
-        await updateDoc(doc(db, 'users', user.uid), {
+        await updateDoc(doc(db, 'users', user.id), {
           wallet_balance: profile.wallet_balance - cost
         });
       }
 
       if (isFreeAd) {
-        await updateDoc(doc(db, 'users', user.uid), {
+        await updateDoc(doc(db, 'users', user.id), {
           hasUsedFreeAd: true
         });
       }
@@ -679,7 +679,7 @@ export default function MerchantDashboard() {
                     if (files.length === 0) return;
                     
                     setUploadingImage(true);
-                    const uploadPromises = files.map(file => {
+                    const uploadPromises = files.map((file: File) => {
                       return new Promise<string>((resolve, reject) => {
                         const reader = new FileReader();
                         reader.onload = (ev) => {

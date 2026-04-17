@@ -85,7 +85,7 @@ export default function Home() {
     setBuying(product.id);
     try {
       // Fraud Check
-      const fraudResult = await checkFraud(user.uid, product.merchantId);
+      const fraudResult = await checkFraud(user.id, product.merchantId);
       const isSuspicious = fraudResult.isSuspicious;
 
       // Create order ID
@@ -153,7 +153,7 @@ export default function Home() {
 
       // 1. Create Order
       batch.set(doc(db, 'orders', orderId), {
-        userId: user.uid,
+        userId: user.id,
         products: [{
           productId: product.id,
           title: product.title,
@@ -171,13 +171,13 @@ export default function Home() {
       });
 
       // 2. Update Buyer Balance and Points
-      batch.update(doc(db, 'users', user.uid), {
+      batch.update(doc(db, 'users', user.id), {
         wallet_balance: increment(-finalPrice),
         points: increment(Math.floor(finalPrice))
       });
 
       // 3. Update Merchant Balance (if not suspicious and not buying from self)
-      if (!isSuspicious && product.merchantId && product.merchantId !== user.uid) {
+      if (!isSuspicious && product.merchantId && product.merchantId !== user.id) {
         batch.update(doc(db, 'users', product.merchantId), {
           merchant_balance: increment(finalPrice)
         });
@@ -185,7 +185,7 @@ export default function Home() {
 
       // 4. Record Wallet Transaction
       batch.set(doc(collection(db, 'wallet_transactions')), {
-        userId: user.uid,
+        userId: user.id,
         type: 'purchase',
         amount: -product.price,
         status: 'completed',
@@ -196,13 +196,13 @@ export default function Home() {
 
       // 6. Increment Purchase Count (Trust System)
       if (product.merchantId) {
-        const trustDocId = `${user.uid}_${product.merchantId}`;
+        const trustDocId = `${user.id}_${product.merchantId}`;
         const trustRef = doc(db, 'buyer_merchant_trust', trustDocId);
         const trustSnap = await getDoc(trustRef);
         
         if (!trustSnap.exists()) {
           batch.set(trustRef, {
-            buyerId: user.uid,
+            buyerId: user.id,
             merchantId: product.merchantId,
             currentCount: 1,
             approvedLimit: 5,
@@ -227,7 +227,7 @@ export default function Home() {
 
       // Notify user
       await addDoc(collection(db, 'notifications'), {
-        userId: user.uid,
+        userId: user.id,
         message: isSuspicious 
           ? `تم تعليق طلبك ${product.title} للمراجعة الأمنية` 
           : `تم شراء المنتج ${product.title} بنجاح`,
@@ -270,7 +270,7 @@ export default function Home() {
 
     try {
       // Check if user bought the product
-      const ordersSnap = await getDocs(query(collection(db, 'orders'), where('userId', '==', user.uid)));
+      const ordersSnap = await getDocs(query(collection(db, 'orders'), where('userId', '==', user.id)));
       const hasBought = ordersSnap.docs.some(d => {
         const order = d.data();
         return order.products.some((p: any) => p.productId === reviewingProduct.id);
@@ -282,7 +282,7 @@ export default function Home() {
       }
 
       await addDoc(collection(db, 'reviews'), {
-        userId: user.uid,
+        userId: user.id,
         productId: reviewingProduct.id,
         rating,
         comment,

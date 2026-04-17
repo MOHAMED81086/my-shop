@@ -1,14 +1,32 @@
 import toast from 'react-hot-toast';
 import { create } from 'zustand';
-import { User as FirebaseUser } from 'firebase/auth';
-import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { doc, onSnapshot, setDoc, getDoc, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 export interface UserProfile {
   userId: string;
+  id?: string; // Compatibility
   numericId?: string;
-  email: string;
+  username: string; // Required
+  password?: string; // Required for local auth
+  email?: string;
   name: string;
+  role: string;
+  originalRole?: string;
+  wallet_balance: number;
+  balance?: number; // Alias for wallet_balance
+  merchant_balance?: number;
+  profit?: number;
+  points: number;
+  createdAt: string;
+  blocked?: boolean;
+  referredBy?: string;
+  referralCode?: string;
+  referralPurchased?: boolean;
+  referralCharged?: boolean;
+  referralCompleted?: boolean;
+  firstProfitAt?: any;
+  hasUsedFreeAd?: boolean;
   photoUrl?: string;
   language?: string;
   notificationSettings?: {
@@ -17,32 +35,18 @@ export interface UserProfile {
     transfer: boolean;
     tickets: boolean;
   };
-  role: string;
-  originalRole?: string;
-  roleExpiryDate?: string | null;
-  wallet_balance: number;
-  merchant_balance?: number;
-  points?: number;
-  eventPoints?: number;
-  referralCode?: string;
-  referredBy?: string;
-  referralCharged?: boolean;
-  referralPurchased?: boolean;
-  referralCompleted?: boolean;
-  hasUsedFreeAd?: boolean;
-  permissions: string[];
-  blocked: boolean;
-  createdAt: string;
-  firstProfitAt?: any;
 }
 
 interface AuthState {
-  user: FirebaseUser | null;
+  user: any | null; // Local user object
   profile: UserProfile | null;
   loading: boolean;
-  setUser: (user: FirebaseUser | null) => void;
+  setUser: (user: any | null) => void;
   setProfile: (profile: UserProfile | null) => void;
   initialize: () => void;
+  register: (username: string, password: string) => void;
+  login: (username: string, password: string) => void;
+  logout: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -52,164 +56,90 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setUser: (user) => set({ user }),
   setProfile: (profile) => set({ profile }),
   initialize: () => {
-    auth.onAuthStateChanged(async (user) => {
-      try {
-        set({ user, loading: true });
-        if (user) {
-          const userRef = doc(db, 'users', user.uid);
-          
-          // Check if user exists, if not create
-          let docSnap;
-          try {
-            docSnap = await getDoc(userRef);
-          } catch (err) {
-            console.error("Error fetching user doc:", err);
-            set({ loading: false });
-            return;
+    const currentUserId = localStorage.getItem('currentUserId');
+    if (currentUserId) {
+      const users = JSON.parse(localStorage.getItem('users') || '[]');
+      const user = users.find((u: any) => u.id === currentUserId);
+      if (user) {
+        set({ user, profile: { ...user, userId: user.id, wallet_balance: user.balance || 0 }, loading: false });
+        
+        // Sync with Firestore if possible (optional but good for data)
+        const userRef = doc(db, 'users', user.id);
+        onSnapshot(userRef, (snapshot) => {
+          if (snapshot.exists()) {
+             const firestoreData = snapshot.data() as any;
+             // Sync balance and other fields back to local storage if they changed in firestore (e.g. from admin)
+             const updatedUsers = users.map((u: any) => u.id === user.id ? { ...u, ...firestoreData, balance: firestoreData.wallet_balance } : u);
+             localStorage.setItem('users', JSON.stringify(updatedUsers));
+             set({ profile: { ...firestoreData, userId: user.id }, user: updatedUsers.find((u: any) => u.id === user.id) });
           }
-
-          if (!docSnap.exists()) {
-            let baseName = user.displayName || 'New User';
-            let finalName = baseName;
-            
-            // Check for uniqueness
-            const { query, collection, where, getDocs } = await import('firebase/firestore');
-            let isUnique = false;
-            let counter = 1;
-            
-            try {
-              while (!isUnique && counter < 10) { // Limit attempts to prevent infinite loop
-                const q = query(collection(db, 'users'), where('name', '==', finalName));
-                const snap = await getDocs(q);
-                if (snap.empty) {
-                  isUnique = true;
-                } else {
-                  finalName = `${baseName}${counter}`;
-                  counter++;
-                }
-              }
-            } catch (err) {
-              console.error("Error checking name uniqueness:", err);
-            }
-
-            // Generate unique 10-digit numeric ID
-            let numericId = '';
-            let isIdUnique = false;
-            let idCounter = 0;
-            try {
-              while (!isIdUnique && idCounter < 10) {
-                numericId = Math.floor(1000000000 + Math.random() * 9000000000).toString();
-                const qId = query(collection(db, 'users'), where('numericId', '==', numericId));
-                const snapId = await getDocs(qId);
-                if (snapId.empty) {
-                  isIdUnique = true;
-                }
-                idCounter++;
-              }
-            } catch (err) {
-              console.error("Error generating numeric ID:", err);
-              numericId = Date.now().toString().substring(3);
-            }
-
-            // Generate unique referral code
-            const referralCode = `REF-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-
-            const newProfile: UserProfile = {
-              userId: user.uid,
-              numericId,
-              email: user.email || '',
-              name: finalName,
-              role: 'buyer',
-              wallet_balance: 0,
-              points: 0,
-              eventPoints: 0,
-              referralCode,
-              permissions: [],
-              blocked: false,
-              createdAt: new Date().toISOString(),
-            };
-            await setDoc(userRef, newProfile);
-          } else {
-            // Add numericId to existing users if they don't have one
-            const data = docSnap.data() as UserProfile;
-            const updates: any = {};
-
-            if (!data.numericId) {
-              try {
-                const { query, collection, where, getDocs } = await import('firebase/firestore');
-                let numericId = '';
-                let isIdUnique = false;
-                let idCounter = 0;
-                while (!isIdUnique && idCounter < 10) {
-                  numericId = Math.floor(1000000000 + Math.random() * 9000000000).toString();
-                  const qId = query(collection(db, 'users'), where('numericId', '==', numericId));
-                  const snapId = await getDocs(qId);
-                  if (snapId.empty) {
-                    isIdUnique = true;
-                  }
-                  idCounter++;
-                }
-                if (numericId) updates.numericId = numericId;
-              } catch (err) {
-                console.error("Error updating numeric ID:", err);
-              }
-            }
-
-            if (!data.referralCode) {
-              updates.referralCode = `REF-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-            }
-
-            if (Object.keys(updates).length > 0) {
-              try {
-                const { updateDoc } = await import('firebase/firestore');
-                await updateDoc(userRef, updates);
-              } catch (err) {
-                console.error("Error updating profile with missing fields:", err);
-              }
-            }
-          }
-
-          // Listen to profile changes
-          onSnapshot(userRef, (snapshot) => {
-            if (snapshot.exists()) {
-              const data = snapshot.data() as UserProfile;
-              
-              if (data.blocked) {
-                toast.error('عذراً، تم حظر حسابك. يرجى التواصل مع الدعم الفني.');
-                auth.signOut();
-                set({ user: null, profile: null, loading: false });
-                return;
-              }
-
-              // Revert admin role if session is missing
-              try {
-                if (data.role === 'admin' && !sessionStorage.getItem('adminSession')) {
-                   const revertedRole = data.originalRole || 'buyer';
-                   import('firebase/firestore').then(({ updateDoc }) => {
-                     updateDoc(userRef, { role: revertedRole, masterCode: null }).catch(e => console.error("Revert role failed:", e));
-                   });
-                   data.role = revertedRole;
-                }
-              } catch (e) {
-                // sessionStorage might be blocked on some mobile browsers
-                console.warn("sessionStorage access failed:", e);
-              }
-
-              set({ profile: data, loading: false });
-            } else {
-              set({ profile: null, loading: false });
-            }
-          }, (error) => {
-            console.error("Profile snapshot error:", error);
-            set({ loading: false });
-          });
-        } else {
-          set({ profile: null, loading: false });
-        }
-      } catch (error) {
-        console.error("Auth initialization error:", error);
+        });
+      } else {
         set({ loading: false });
       }
-    });
+    } else {
+      set({ loading: false });
+    }
   },
+  register: async (username, password) => {
+    const users = JSON.parse(localStorage.getItem('users') || '[]');
+    if (users.find((u: any) => u.username === username)) {
+      toast.error('اسم المستخدم مستخدم بالفعل');
+      return;
+    }
+
+    const id = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+    const newUser = {
+      id,
+      username,
+      password,
+      name: username,
+      role: 'buyer',
+      balance: 0,
+      profit: 0,
+      points: 0,
+      createdAt: new Date().toISOString()
+    };
+
+    users.push(newUser);
+    localStorage.setItem('users', JSON.stringify(users));
+    localStorage.setItem('currentUserId', id);
+
+    // Create record in Firestore to keep data synced
+    try {
+      await setDoc(doc(db, 'users', id), {
+        userId: id,
+        numericId: id,
+        username,
+        name: username,
+        role: 'buyer',
+        wallet_balance: 0,
+        points: 0,
+        createdAt: newUser.createdAt
+      });
+    } catch (e) {
+      console.error("Firestore sync failed", e);
+    }
+
+    set({ user: newUser, profile: { ...newUser, userId: id, wallet_balance: 0 }, loading: false });
+    toast.success('تم إنشاء الحساب');
+  },
+  login: (username, password) => {
+    const users = JSON.parse(localStorage.getItem('users') || '[]');
+    const user = users.find((u: any) => u.username === username && u.password === password);
+
+    if (!user) {
+      toast.error('بيانات غير صحيحة');
+      return;
+    }
+
+    localStorage.setItem('currentUserId', user.id);
+    set({ user, profile: { ...user, userId: user.id, wallet_balance: user.balance || 0 }, loading: false });
+    toast.success('تم تسجيل الدخول');
+  },
+  logout: () => {
+    localStorage.removeItem('currentUserId');
+    set({ user: null, profile: null });
+    // location.reload(); // Usually handled by app state
+  }
 }));

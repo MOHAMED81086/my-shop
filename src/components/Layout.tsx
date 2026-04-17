@@ -2,21 +2,26 @@ import React, { useEffect, useState } from 'react';
 import { Outlet, Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { useCartStore } from '../store/useCartStore';
-import { signInWithGoogle, auth, db } from '../lib/firebase';
-import { signOut } from 'firebase/auth';
-import { ShoppingCart, Wallet, User, LogOut, LayoutDashboard, ShieldAlert, Bell, MessageSquare, Settings, Key, Award, Plus, Trophy } from 'lucide-react';
+import { db } from '../lib/firebase';
+import { ShoppingCart, Wallet, User, LogOut, LayoutDashboard, ShieldAlert, Bell, MessageSquare, Settings, Key, Award, Plus, Trophy, LogIn, UserPlus } from 'lucide-react';
 import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { getLevelTitle } from '../lib/utils';
 import AdModal from './AdModal';
+import toast from 'react-hot-toast';
 
 export default function Layout() {
-  const { user, profile, loading, initialize } = useAuthStore();
+  const { user, profile, loading, initialize, login, register, logout } = useAuthStore();
   const { totalItems } = useCartStore();
   const navigate = useNavigate();
   const [unreadCount, setUnreadCount] = useState(0);
   const [customRank, setCustomRank] = useState<any>(null);
   const { t, i18n } = useTranslation();
+
+  // Login Form States
+  const [showRegister, setShowRegister] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
 
   useEffect(() => {
     if (profile?.role && !['admin', 'merchant', 'support', 'buyer'].includes(profile.role)) {
@@ -32,16 +37,35 @@ export default function Layout() {
     try {
       if (profile?.role === 'admin') {
         const revertedRole = profile.originalRole || 'buyer';
-        await updateDoc(doc(db, 'users', user!.uid), {
+        await updateDoc(doc(db, 'users', user!.id), {
           role: revertedRole,
           masterCode: null
         });
       }
       sessionStorage.removeItem('adminSession');
-      await signOut(auth);
+      logout();
+      window.location.reload();
     } catch (error) {
       console.error(error);
     }
+  };
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!username || !password) {
+      toast.error('يرجى إدخال البيانات');
+      return;
+    }
+    login(username, password);
+  };
+
+  const handleRegister = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!username || !password) {
+      toast.error('يرجى إدخال البيانات');
+      return;
+    }
+    register(username, password);
   };
 
   useEffect(() => {
@@ -49,7 +73,68 @@ export default function Layout() {
   }, [initialize]);
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">جاري التحميل...</div>;
+    return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-bold">جاري التحميل...</div>;
+  }
+
+  // If not logged in, show Login/Register Page
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-4" dir="rtl">
+        <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 border border-gray-100 dark:border-gray-700">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-2">{t('app_name')}</h1>
+            <p className="text-gray-500 dark:text-gray-400">{showRegister ? 'إنشاء حساب جديد' : 'تسجيل الدخول للمتابعة'}</p>
+          </div>
+
+          <form onSubmit={showRegister ? handleRegister : handleLogin} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">اسم المستخدم</label>
+              <div className="relative">
+                <User className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input 
+                  type="text" 
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="w-full pr-10 pl-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  placeholder="Username"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">كلمة المرور</label>
+              <div className="relative">
+                <Key className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input 
+                  type="password" 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pr-10 pl-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  placeholder="Password"
+                />
+              </div>
+            </div>
+
+            <button 
+              type="submit"
+              className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
+            >
+              {showRegister ? <UserPlus className="w-5 h-5" /> : <LogIn className="w-5 h-5" />}
+              {showRegister ? 'إنشاء حساب' : 'تسجيل دخول'}
+            </button>
+          </form>
+
+          <div className="mt-8 text-center border-t border-gray-100 dark:border-gray-700 pt-6">
+            <button 
+              onClick={() => setShowRegister(!showRegister)}
+              className="text-blue-600 dark:text-blue-400 font-medium hover:underline"
+            >
+              {showRegister ? 'لديك حساب بالفعل؟ سجل دخولك' : 'ليس لديك حساب؟ سجل الآن'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (profile?.blocked) {
@@ -80,7 +165,7 @@ export default function Layout() {
           </nav>
 
           <div className="flex items-center gap-4">
-            {user ? (
+            {user && (
               <div className="flex items-center gap-4">
                 <Link to="/cart" className="p-2 text-gray-500 hover:text-blue-600 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 relative transition-colors">
                   <ShoppingCart className="w-5 h-5" />
@@ -116,10 +201,6 @@ export default function Layout() {
                   <LogOut className="w-5 h-5" />
                 </button>
               </div>
-            ) : (
-              <button onClick={signInWithGoogle} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium transition-colors">
-                {t('login')}
-              </button>
             )}
           </div>
         </div>

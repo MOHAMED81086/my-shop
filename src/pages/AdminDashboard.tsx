@@ -375,7 +375,7 @@ export default function AdminDashboard() {
     if (!user) return;
     try {
       await addDoc(collection(db, 'logs'), {
-        userId: user.uid,
+        userId: user.id,
         action,
         metadata,
         createdAt: serverTimestamp()
@@ -405,7 +405,7 @@ export default function AdminDashboard() {
     try {
       if (masterCode === 'A7X-9KQ3-ZM81-PRO-MYSTORE-X99-ULTRA') {
         sessionStorage.setItem('adminSession', 'true');
-        await updateDoc(doc(db, 'users', user.uid), {
+        await updateDoc(doc(db, 'users', user.id), {
           originalRole: profile.role === 'admin' ? profile.originalRole || 'buyer' : profile.role,
           role: 'admin',
           masterCode: masterCode, // Temporarily needed for security rules
@@ -592,7 +592,7 @@ export default function AdminDashboard() {
     if (!replyMessage || !user || !activeTicket) return;
     try {
       const newMessages = [...activeTicket.messages, {
-        senderId: user.uid,
+        senderId: user.id,
         senderName: profile?.name || 'Admin',
         message: replyMessage,
         attachmentUrl: replyAttachmentUrl || null,
@@ -924,7 +924,7 @@ export default function AdminDashboard() {
       } else {
         await addDoc(collection(db, 'products'), {
           ...baseData,
-          merchantId: user?.uid,
+          merchantId: profile?.userId,
           merchantName: profile?.name || 'Admin',
           ratingAverage: 0,
           salesCount: 0,
@@ -1660,7 +1660,7 @@ export default function AdminDashboard() {
                           if (files.length === 0) return;
                           
                           setUploadingImage(true);
-                          const uploadPromises = files.map(file => {
+                          const uploadPromises = files.map((file: File) => {
                             return new Promise<string>((resolve, reject) => {
                               const reader = new FileReader();
                               reader.onload = (ev) => {
@@ -1987,8 +1987,8 @@ export default function AdminDashboard() {
                   </div>
                   <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white dark:bg-gray-800">
                     {activeTicket.messages?.map((msg: any, idx: number) => (
-                      <div key={idx} className={`flex flex-col ${msg.senderId === user?.uid ? 'items-start' : 'items-end'}`}>
-                        <div className={`max-w-[80%] p-3 rounded-2xl relative group ${msg.senderId === user?.uid ? 'bg-blue-100 text-blue-900 rounded-tr-none' : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-tl-none'}`}>
+                      <div key={idx} className={`flex flex-col ${msg.senderId === profile?.userId ? 'items-start' : 'items-end'}`}>
+                        <div className={`max-w-[80%] p-3 rounded-2xl relative group ${msg.senderId === profile?.userId ? 'bg-blue-100 text-blue-900 rounded-tr-none' : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-tl-none'}`}>
                           <button 
                             onClick={async () => {
                               const newMessages = activeTicket.messages.filter((_: any, i: number) => i !== idx);
