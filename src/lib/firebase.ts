@@ -1,7 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
-  GoogleAuthProvider, 
   signInWithPopup, 
   signOut,
   signInWithEmailAndPassword,
@@ -61,18 +60,6 @@ async function testConnection() {
   }
 }
 testConnection();
-
-export const googleProvider = new GoogleAuthProvider();
-
-export const signInWithGoogle = async () => {
-  try {
-    const result = await signInWithPopup(auth, googleProvider);
-    return result.user;
-  } catch (error: any) {
-    console.error("Google Auth Error:", error);
-    throw error;
-  }
-};
 
 export const loginWithUsername = async (username: string, password: string) => {
   try {
