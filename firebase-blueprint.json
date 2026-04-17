@@ -1,0 +1,297 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user in the system (Buyer, Merchant, Admin)",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["buyer", "merchant", "admin"] },
+        "wallet_balance": { "type": "number" },
+        "merchant_balance": { "type": "number" },
+        "permissions": { "type": "array", "items": { "type": "string" } },
+        "blocked": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "email", "role", "wallet_balance", "createdAt"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "A product for sale",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "images": { "type": "array", "items": { "type": "string" } },
+        "stock": { "type": "number" },
+        "merchantId": { "type": "string" },
+        "ratingAverage": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "deliveryType": { "type": "string", "enum": ["code", "file", "link", "account"] },
+        "codePool": { "type": "array", "items": { "type": "string" } },
+        "fileUrl": { "type": "string" },
+        "downloadLink": { "type": "string" },
+        "accountList": { "type": "array", "items": { "type": "object" } },
+        "maxDownloads": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "price", "stock", "merchantId", "createdAt"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A user's order",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "products": { "type": "array", "items": { "type": "object" } },
+        "totalPrice": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "shipping", "delivered", "cancelled"] },
+        "paymentMethod": { "type": "string" },
+        "paymentProofImage": { "type": "string" },
+        "transactionId": { "type": "string" },
+        "deliveredItems": { "type": "array", "items": { "type": "object" } },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "products", "totalPrice", "status", "createdAt"]
+    },
+    "WithdrawalRequest": {
+      "title": "WithdrawalRequest",
+      "description": "A request to withdraw merchant profit",
+      "type": "object",
+      "properties": {
+        "merchantId": { "type": "string" },
+        "amount": { "type": "number" },
+        "fee": { "type": "number" },
+        "finalAmount": { "type": "number" },
+        "phoneNumber": { "type": "string" },
+        "method": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["merchantId", "amount", "fee", "finalAmount", "phoneNumber", "method", "status", "createdAt"]
+    },
+    "WalletTransaction": {
+      "title": "WalletTransaction",
+      "description": "A transaction in the user's wallet",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["recharge", "transfer", "purchase"] },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "completed", "rejected"] },
+        "referenceId": { "type": "string" },
+        "details": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "type", "amount", "status", "createdAt"]
+    },
+    "RechargeRequest": {
+      "title": "RechargeRequest",
+      "description": "A request to recharge wallet via external transfer",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "amount": { "type": "number" },
+        "transactionId": { "type": "string" },
+        "paymentProofImage": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "adminReason": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "amount", "transactionId", "status", "createdAt"]
+    },
+    "Rank": {
+      "title": "Rank",
+      "description": "A dynamic rank with permissions",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "permissions": { "type": "array", "items": { "type": "string" } },
+        "code": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "permissions", "createdAt"]
+    },
+    "Ticket": {
+      "title": "Ticket",
+      "description": "Support ticket",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "subject": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "in_progress", "resolved", "closed"] },
+        "messages": { "type": "array", "items": { "type": "object" } },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "subject", "status", "createdAt"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Product review",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "productId": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "productId", "rating", "createdAt"]
+    },
+    "Gateway": {
+      "title": "Gateway",
+      "description": "Payment gateway for recharge",
+      "type": "object",
+      "properties": {
+        "phone": { "type": "string" },
+        "weeklyLimit": { "type": "number" },
+        "monthlyLimit": { "type": "number" },
+        "usedWeekly": { "type": "number" },
+        "usedMonthly": { "type": "number" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["phone", "weeklyLimit", "monthlyLimit", "usedWeekly", "usedMonthly", "isActive"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "System audit log",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "action": { "type": "string" },
+        "metadata": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "action", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "User notification",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "message": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "message", "read", "createdAt"]
+    },
+    "SystemSetting": {
+      "title": "SystemSetting",
+      "description": "Global system settings",
+      "type": "object",
+      "properties": {
+        "rechargeFee": { "type": "number" },
+        "transferFee": { "type": "number" },
+        "rechargeEnabled": { "type": "boolean" },
+        "transferEnabled": { "type": "boolean" }
+      },
+      "required": ["rechargeFee", "transferFee", "rechargeEnabled", "transferEnabled"]
+    },
+    "Advertisement": {
+      "title": "Advertisement",
+      "description": "Represents an advertisement banner.",
+      "type": "object",
+      "properties": {
+        "imageUrl": { "type": "string", "format": "uri" },
+        "linkUrl": { "type": "string", "format": "uri" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["imageUrl", "isActive", "createdAt"]
+    },
+    "Role": {
+      "title": "Role",
+      "type": "object",
+      "properties": {
+        "roleName": { "type": "string" },
+        "roleKey": { "type": "string" },
+        "description": { "type": "string" },
+        "permissions": { "type": "array", "items": { "type": "string" } },
+        "isActive": { "type": "boolean" },
+        "isDefault": { "type": "boolean" }
+      },
+      "required": ["roleName", "roleKey", "permissions", "isActive"]
+    },
+    "Code": {
+      "title": "Code",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "type": { "type": "string", "enum": ["role", "discount"] },
+        "roleKey": { "type": "string" },
+        "durationHours": { "type": "number" },
+        "maxUses": { "type": "number" },
+        "usedCount": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["code", "type", "maxUses", "usedCount", "isActive"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles and balances"
+    },
+    "products/{productId}": {
+      "schema": { "$ref": "#/entities/Product" },
+      "description": "Products available in the store"
+    },
+    "orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Orders placed by users"
+    },
+    "wallet_transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/WalletTransaction" },
+      "description": "Wallet transaction history"
+    },
+    "recharge_requests/{requestId}": {
+      "schema": { "$ref": "#/entities/RechargeRequest" },
+      "description": "Manual recharge requests"
+    },
+    "ranks/{rankId}": {
+      "schema": { "$ref": "#/entities/Rank" },
+      "description": "Dynamic ranks"
+    },
+    "tickets/{ticketId}": {
+      "schema": { "$ref": "#/entities/Ticket" },
+      "description": "Support tickets"
+    },
+    "reviews/{reviewId}": {
+      "schema": { "$ref": "#/entities/Review" },
+      "description": "Product reviews"
+    },
+    "gateways/{gatewayId}": {
+      "schema": { "$ref": "#/entities/Gateway" },
+      "description": "Payment gateways"
+    },
+    "logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Audit logs"
+    },
+    "notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "User notifications"
+    },
+    "settings/{settingId}": {
+      "schema": { "$ref": "#/entities/SystemSetting" },
+      "description": "System settings"
+    },
+    "ads/{adId}": {
+      "schema": { "$ref": "#/entities/Advertisement" },
+      "description": "Stores advertisement banners."
+    },
+    "roles/{roleId}": {
+      "schema": { "$ref": "#/entities/Role" },
+      "description": "System roles"
+    },
+    "codes/{codeId}": {
+      "schema": { "$ref": "#/entities/Code" },
+      "description": "System codes"
+    }
+  }
+}
