@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/useAuthStore';
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc, orderBy, updateDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, uploadImage } from '../lib/firebase';
 import { Package, Plus, Trash2, Wallet, ArrowUpRight, Clock, CheckCircle, XCircle, Megaphone, Play, Edit3, Check, Crown, BarChart3, Search, Filter, Layers } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
@@ -24,6 +24,8 @@ export default function MerchantDashboard() {
   const [maxDownloads, setMaxDownloads] = useState('');
   const [loading, setLoading] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [images, setImages] = useState<string[]>([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawPhone, setWithdrawPhone] = useState('');
@@ -258,6 +260,7 @@ export default function MerchantDashboard() {
         wholesaleMinQty: isDigitalContent && wholesaleMinQty ? Number(wholesaleMinQty) : null,
         isDoubleCode,
         usageCount: Number(usageCount) || 1,
+        images,
         isActive: status === 'active',
       };
 
@@ -271,7 +274,6 @@ export default function MerchantDashboard() {
         await addDoc(collection(db, 'products'), {
           ...productData,
           merchantId: user.uid,
-          images: [],
           ratingAverage: 0,
           createdAt: serverTimestamp()
         });
@@ -298,6 +300,7 @@ export default function MerchantDashboard() {
     setMaxDownloads('');
     setWholesalePrice('');
     setWholesaleMinQty('');
+    setImages([]);
     setIsDoubleCode(false);
     setUsageCount('1');
     setStatus('active');
@@ -338,6 +341,7 @@ export default function MerchantDashboard() {
     setWholesaleMinQty(product.wholesaleMinQty ? product.wholesaleMinQty.toString() : '');
     setIsDoubleCode(product.isDoubleCode || false);
     setUsageCount(product.usageCount ? product.usageCount.toString() : '1');
+    setImages(product.images || []);
     setStatus(product.isActive === false ? 'draft' : 'active');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -663,6 +667,92 @@ export default function MerchantDashboard() {
                 </div>
               )}
 
+              <div>
+                <label className="block text-sm font-medium mb-1">صور المنتج</label>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  multiple 
+                  disabled={uploadingImage}
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []) as File[];
+                    if (files.length === 0) return;
+                    
+                    setUploadingImage(true);
+                    const uploadPromises = files.map(file => {
+                      return new Promise<string>((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          const img = new Image();
+                          img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            const MAX_WIDTH = 800;
+                            const MAX_HEIGHT = 800;
+                            let width = img.width;
+                            let height = img.height;
+
+                            if (width > height) {
+                              if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+                            } else {
+                              if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+                            }
+                            canvas.width = width;
+                            canvas.height = height;
+                            const ctx = canvas.getContext('2d');
+                            ctx?.drawImage(img, 0, 0, width, height);
+                            
+                            canvas.toBlob(async (blob) => {
+                              if (!blob) {
+                                reject(new Error("Failed to create blob"));
+                                return;
+                              }
+                              try {
+                                const path = `products/${Date.now()}_${file.name}`;
+                                const url = await uploadImage(blob, path);
+                                resolve(url);
+                              } catch (err) {
+                                reject(err);
+                              }
+                            }, 'image/jpeg', 0.8);
+                          };
+                          img.src = ev.target?.result as string;
+                        };
+                        reader.readAsDataURL(file);
+                      });
+                    });
+
+                    Promise.all(uploadPromises)
+                      .then(urls => {
+                        setImages(prev => [...prev, ...urls]);
+                        toast.success('تم رفع الصور بنجاح');
+                      })
+                      .catch(err => {
+                        console.error(err);
+                        toast.error('فشل رفع الصور');
+                      })
+                      .finally(() => {
+                        setUploadingImage(false);
+                      });
+                  }} 
+                  className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700" 
+                />
+                {uploadingImage && <p className="text-xs text-blue-500 mt-1 animate-pulse">جاري رفع الصور...</p>}
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {images.map((img, idx) => (
+                    <div key={idx} className="relative w-16 h-16">
+                      <img src={img} alt="" className="w-full h-full object-cover rounded-lg border dark:border-gray-600" />
+                      <button 
+                        type="button" 
+                        onClick={() => setImages(prev => prev.filter((_, i) => i !== idx))}
+                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
               <div>
                 <label className="block text-sm font-medium mb-1">الوصف</label>
                 <textarea required value={description} onChange={e => setDescription(e.target.value)} className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 h-24"></textarea>

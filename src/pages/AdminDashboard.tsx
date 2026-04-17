@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/useAuthStore';
 import { doc, updateDoc, collection, query, onSnapshot, orderBy, where, addDoc, serverTimestamp, getDocs, deleteDoc, setDoc, increment } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, uploadImage } from '../lib/firebase';
 import { Key, Users, CreditCard, Package, Shield, LayoutDashboard, Send, MessageSquare, Activity, BarChart3, DollarSign, ShoppingBag, Settings, Image as ImageIcon, Plus, Trash2, Edit, Archive, X, AlertTriangle, ShieldCheck, Wallet, Trophy } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -11,6 +11,7 @@ export default function AdminDashboard() {
   const { user, profile } = useAuthStore();
   const [masterCode, setMasterCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
 
   // Stats
@@ -1653,44 +1654,70 @@ export default function AdminDashboard() {
                         type="file" 
                         accept="image/*" 
                         multiple 
+                        disabled={uploadingImage}
                         onChange={(e) => {
-                          const files = Array.from(e.target.files || []);
-                          files.forEach(file => {
-                            const reader = new FileReader();
-                            reader.onload = (ev) => {
-                              const img = new Image();
-                              img.onload = () => {
-                                const canvas = document.createElement('canvas');
-                                const MAX_WIDTH = 800;
-                                const MAX_HEIGHT = 800;
-                                let width = img.width;
-                                let height = img.height;
+                          const files = Array.from(e.target.files || []) as File[];
+                          if (files.length === 0) return;
+                          
+                          setUploadingImage(true);
+                          const uploadPromises = files.map(file => {
+                            return new Promise<string>((resolve, reject) => {
+                              const reader = new FileReader();
+                              reader.onload = (ev) => {
+                                const img = new Image();
+                                img.onload = () => {
+                                  const canvas = document.createElement('canvas');
+                                  const MAX_WIDTH = 800;
+                                  const MAX_HEIGHT = 800;
+                                  let width = img.width;
+                                  let height = img.height;
 
-                                if (width > height) {
-                                  if (width > MAX_WIDTH) {
-                                    height *= MAX_WIDTH / width;
-                                    width = MAX_WIDTH;
+                                  if (width > height) {
+                                    if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+                                  } else {
+                                    if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
                                   }
-                                } else {
-                                  if (height > MAX_HEIGHT) {
-                                    width *= MAX_HEIGHT / height;
-                                    height = MAX_HEIGHT;
-                                  }
-                                }
-                                canvas.width = width;
-                                canvas.height = height;
-                                const ctx = canvas.getContext('2d');
-                                ctx?.drawImage(img, 0, 0, width, height);
-                                const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-                                setProductForm(prev => ({...prev, images: [...prev.images, dataUrl]}));
+                                  canvas.width = width;
+                                  canvas.height = height;
+                                  const ctx = canvas.getContext('2d');
+                                  ctx?.drawImage(img, 0, 0, width, height);
+                                  
+                                  canvas.toBlob(async (blob) => {
+                                    if (!blob) {
+                                      reject(new Error("Failed to create blob"));
+                                      return;
+                                    }
+                                    try {
+                                      const path = `products/${Date.now()}_${file.name}`;
+                                      const url = await uploadImage(blob, path);
+                                      resolve(url);
+                                    } catch (err) {
+                                      reject(err);
+                                    }
+                                  }, 'image/jpeg', 0.8);
+                                };
+                                img.src = ev.target?.result as string;
                               };
-                              img.src = ev.target?.result as string;
-                            };
-                            reader.readAsDataURL(file as Blob);
+                              reader.readAsDataURL(file);
+                            });
                           });
+
+                          Promise.all(uploadPromises)
+                            .then(urls => {
+                              setProductForm(prev => ({...prev, images: [...prev.images, ...urls]}));
+                              toast.success('تم رفع الصور بنجاح');
+                            })
+                            .catch(err => {
+                              console.error(err);
+                              toast.error('فشل رفع الصور');
+                            })
+                            .finally(() => {
+                              setUploadingImage(false);
+                            });
                         }} 
                         className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700" 
                       />
+                      {uploadingImage && <p className="text-xs text-blue-500 mt-1 animate-pulse">جاري رفع الصور...</p>}
                       <div className="flex flex-wrap gap-2 mt-2">
                         {productForm.images.map((img, idx) => (
                           <div key={idx} className="relative w-16 h-16">
