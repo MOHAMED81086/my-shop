@@ -13,6 +13,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Stats
   const [users, setUsers] = useState<any[]>([]);
@@ -32,8 +33,8 @@ export default function AdminDashboard() {
   const [globalSettings, setGlobalSettings] = useState<any>({ 
     rechargeEnabled: true, 
     withdrawEnabled: true,
-    rechargeFee: 2,
-    transferFee: 1,
+    rechargeFee: 0,
+    transferFee: 0,
     withdrawFee: 0,
     purchaseFee: 0,
     buyerVipPrice: 100,
@@ -191,9 +192,9 @@ export default function AdminDashboard() {
   });
   
   const [feesForm, setFeesForm] = useState({
-    rechargeFee: 2,
+    rechargeFee: 0,
     withdrawFee: 0,
-    transferFee: 1,
+    transferFee: 0,
     purchaseFee: 0,
     buyerVipPrice: 100,
     merchantVipPrice: 150,
@@ -203,9 +204,9 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (globalSettings) {
       setFeesForm({
-        rechargeFee: globalSettings.rechargeFee ?? 2,
+        rechargeFee: globalSettings.rechargeFee ?? 0,
         withdrawFee: globalSettings.withdrawFee ?? 0,
-        transferFee: globalSettings.transferFee ?? 1,
+        transferFee: globalSettings.transferFee ?? 0,
         purchaseFee: globalSettings.purchaseFee ?? 0,
         buyerVipPrice: globalSettings.buyerVipPrice ?? 100,
         merchantVipPrice: globalSettings.merchantVipPrice ?? 150,
@@ -375,7 +376,7 @@ export default function AdminDashboard() {
     if (!user) return;
     try {
       await addDoc(collection(db, 'logs'), {
-        userId: user.id,
+        userId: user.uid,
         action,
         metadata,
         createdAt: serverTimestamp()
@@ -405,7 +406,7 @@ export default function AdminDashboard() {
     try {
       if (masterCode === 'A7X-9KQ3-ZM81-PRO-MYSTORE-X99-ULTRA') {
         sessionStorage.setItem('adminSession', 'true');
-        await updateDoc(doc(db, 'users', user.id), {
+        await updateDoc(doc(db, 'users', user.uid), {
           originalRole: profile.role === 'admin' ? profile.originalRole || 'buyer' : profile.role,
           role: 'admin',
           masterCode: masterCode, // Temporarily needed for security rules
@@ -427,7 +428,7 @@ export default function AdminDashboard() {
       await updateDoc(doc(db, 'recharge_requests', reqId), { status: 'approved' });
       const userToUpdate = users.find(u => u.id === userId);
       if (userToUpdate) {
-        const feePercent = globalSettings.rechargeFee ?? 2;
+        const feePercent = globalSettings.rechargeFee ?? 0;
         const netAmount = amount * (1 - (feePercent / 100)); // dynamic fee
         const userUpdate: any = {
           wallet_balance: increment(netAmount)
@@ -463,7 +464,7 @@ export default function AdminDashboard() {
           type: 'recharge',
           amount: netAmount,
           status: 'completed',
-          details: `شحن رصيد (تم خصم 2% رسوم)`,
+          details: `شحن رصيد${feePercent > 0 ? ` (تم خصم ${feePercent}% رسوم)` : ''}`,
           createdAt: serverTimestamp()
         });
 
@@ -535,7 +536,7 @@ export default function AdminDashboard() {
       }
       
       const absAmount = Math.abs(amount);
-      const feePercent = globalSettings.transferFee ?? 1;
+      const feePercent = globalSettings.transferFee ?? 0;
       const netAmount = absAmount * (1 - (feePercent / 100)); // dynamic fee
 
       // Add to receiver (Sender already had funds deducted)
@@ -553,7 +554,7 @@ export default function AdminDashboard() {
         amount: netAmount,
         status: 'completed',
         referenceId: senderId,
-        details: `استلام تحويل من ${senderId} (تم خصم 1% رسوم)`,
+        details: `استلام تحويل من ${senderId}${feePercent > 0 ? ` (تم خصم ${feePercent}% رسوم)` : ''}`,
         createdAt: serverTimestamp()
       });
 
@@ -592,7 +593,7 @@ export default function AdminDashboard() {
     if (!replyMessage || !user || !activeTicket) return;
     try {
       const newMessages = [...activeTicket.messages, {
-        senderId: user.id,
+        senderId: user.uid,
         senderName: profile?.name || 'Admin',
         message: replyMessage,
         attachmentUrl: replyAttachmentUrl || null,
@@ -924,7 +925,7 @@ export default function AdminDashboard() {
       } else {
         await addDoc(collection(db, 'products'), {
           ...baseData,
-          merchantId: profile?.userId,
+          merchantId: user?.uid,
           merchantName: profile?.name || 'Admin',
           ratingAverage: 0,
           salesCount: 0,
@@ -1205,7 +1206,19 @@ export default function AdminDashboard() {
           <div>
             <h3 className="text-2xl font-bold mb-6">إدارة المستخدمين</h3>
             
-            <div className="mb-6 flex flex-wrap gap-2">
+            <div className="mb-6 space-y-4">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="ابحث عن مستخدم بواسطة ID أو الاسم أو كلمة المرور..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-4 pr-10 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                />
+                <Shield className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              </div>
+
+              <div className="flex flex-wrap gap-2">
               <button 
                 onClick={() => setSelectedRoleFilter('all')}
                 className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${selectedRoleFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
@@ -1226,6 +1239,7 @@ export default function AdminDashboard() {
                 </button>
               ))}
             </div>
+          </div>
 
             <div className="overflow-x-auto">
               <table className="w-full text-right">
@@ -1233,18 +1247,30 @@ export default function AdminDashboard() {
                   <tr className="border-b border-gray-100 dark:border-gray-700 text-gray-500">
                     <th className="pb-3 font-medium">الاسم</th>
                     <th className="pb-3 font-medium">ID</th>
-                    <th className="pb-3 font-medium">البريد</th>
+                    <th className="pb-3 font-medium">كلمة المرور</th>
                     <th className="pb-3 font-medium">الرصيد</th>
                     <th className="pb-3 font-medium">الرتبة</th>
                     <th className="pb-3 font-medium">الإجراءات</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {users.filter(u => selectedRoleFilter === 'all' || u.role === selectedRoleFilter).map(u => (
+                  {users
+                    .filter(u => selectedRoleFilter === 'all' || u.role === selectedRoleFilter)
+                    .filter(u => {
+                      if (!searchQuery) return true;
+                      const q = searchQuery.toLowerCase();
+                      return (
+                        u.numericId?.toString().toLowerCase().includes(q) ||
+                        u.id.toLowerCase().includes(q) ||
+                        u.name?.toLowerCase().includes(q) ||
+                        u.password?.toLowerCase().includes(q)
+                      );
+                    })
+                    .map(u => (
                     <tr key={u.id} className="border-b border-gray-50 dark:border-gray-750">
                       <td className="py-4">{u.name}</td>
                       <td className="py-4 font-mono text-sm text-gray-500">{u.numericId || u.id}</td>
-                      <td className="py-4 text-gray-500">{u.email}</td>
+                      <td className="py-4 font-mono text-xs text-red-500 bg-red-50 dark:bg-red-900/10 px-2 rounded">{u.password || 'N/A'}</td>
                       <td className="py-4 font-bold text-blue-600">{u.wallet_balance?.toLocaleString()} ج.م</td>
                       <td className="py-4">
                         <span className={`px-2 py-1 rounded-md text-xs ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : u.role === 'merchant' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-700'}`}>
@@ -1280,8 +1306,12 @@ export default function AdminDashboard() {
                       <input type="text" value={selectedUser.name} onChange={e => setSelectedUser({...selectedUser, name: e.target.value})} className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700" />
                     </div>
                     <div>
-                      <label className="block text-sm mb-1 text-gray-500">البريد الإلكتروني</label>
-                      <input type="text" value={selectedUser.email} disabled className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-200 dark:bg-gray-600 cursor-not-allowed" />
+                      <label className="block text-sm mb-1 text-gray-500">اسم المستخدم</label>
+                      <input type="text" value={selectedUser.username} onChange={e => setSelectedUser({...selectedUser, username: e.target.value})} className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700" />
+                    </div>
+                    <div>
+                      <label className="block text-sm mb-1 text-gray-500">كلمة المرور</label>
+                      <input type="text" value={selectedUser.password} onChange={e => setSelectedUser({...selectedUser, password: e.target.value})} className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700" />
                     </div>
                     <div>
                       <label className="block text-sm mb-1 text-gray-500">الرصيد (ج.م)</label>
@@ -1301,10 +1331,12 @@ export default function AdminDashboard() {
                       onClick={async () => {
                         await updateDoc(doc(db, 'users', selectedUser.id), {
                           name: selectedUser.name,
+                          username: selectedUser.username || '',
+                          password: selectedUser.password || '',
                           wallet_balance: selectedUser.wallet_balance,
                           role: selectedUser.role
                         });
-                        await logAction('edit_user', { targetUserId: selectedUser.id, updates: { name: selectedUser.name, balance: selectedUser.wallet_balance, role: selectedUser.role } });
+                        await logAction('edit_user', { targetUserId: selectedUser.id, updates: { name: selectedUser.name, username: selectedUser.username, password: selectedUser.password, balance: selectedUser.wallet_balance, role: selectedUser.role } });
                         toast.success('تم حفظ التعديلات');
                       }}
                       className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -1656,11 +1688,11 @@ export default function AdminDashboard() {
                         multiple 
                         disabled={uploadingImage}
                         onChange={(e) => {
-                          const files = Array.from(e.target.files || []);
+                          const files = Array.from(e.target.files || []) as File[];
                           if (files.length === 0) return;
                           
                           setUploadingImage(true);
-                          const uploadPromises = files.map((file: File) => {
+                          const uploadPromises = files.map(file => {
                             return new Promise<string>((resolve, reject) => {
                               const reader = new FileReader();
                               reader.onload = (ev) => {
@@ -1987,8 +2019,8 @@ export default function AdminDashboard() {
                   </div>
                   <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white dark:bg-gray-800">
                     {activeTicket.messages?.map((msg: any, idx: number) => (
-                      <div key={idx} className={`flex flex-col ${msg.senderId === profile?.userId ? 'items-start' : 'items-end'}`}>
-                        <div className={`max-w-[80%] p-3 rounded-2xl relative group ${msg.senderId === profile?.userId ? 'bg-blue-100 text-blue-900 rounded-tr-none' : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-tl-none'}`}>
+                      <div key={idx} className={`flex flex-col ${msg.senderId === user?.uid ? 'items-start' : 'items-end'}`}>
+                        <div className={`max-w-[80%] p-3 rounded-2xl relative group ${msg.senderId === user?.uid ? 'bg-blue-100 text-blue-900 rounded-tr-none' : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-tl-none'}`}>
                           <button 
                             onClick={async () => {
                               const newMessages = activeTicket.messages.filter((_: any, i: number) => i !== idx);

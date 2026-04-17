@@ -70,7 +70,7 @@ export default function Cart() {
       let suspicionReason = null;
 
       for (const mId of merchantIds) {
-        const res = await checkFraud(user.id, mId as string);
+        const res = await checkFraud(user.uid, mId as string);
         if (res.isSuspicious) {
           isSuspicious = true;
           suspicionReason = res.reason;
@@ -148,7 +148,7 @@ export default function Cart() {
 
       // 1. Create Order
       batch.set(doc(db, 'orders', orderId), {
-        userId: user.id,
+        userId: user.uid,
         products: items.map(item => ({
           productId: item.product.id,
           title: item.product.title,
@@ -200,7 +200,7 @@ export default function Cart() {
           }
         }
 
-        batch.update(doc(db, 'users', user.id), userUpdate);
+        batch.update(doc(db, 'users', user.uid), userUpdate);
 
         // 3. Pay merchants immediately if not suspicious
         if (!isSuspicious) {
@@ -226,7 +226,7 @@ export default function Cart() {
           
           for (const [merchantId, profit] of Object.entries(merchantProfits)) {
             // Only pay if not buying from self
-            if (merchantId !== user.id) {
+            if (merchantId !== user.uid) {
               batch.update(doc(db, 'users', merchantId), {
                 merchant_balance: increment(profit)
               });
@@ -234,13 +234,13 @@ export default function Cart() {
             
             // 4. Increment Purchase Count (Trust System)
             if (merchantId) {
-              const trustDocId = `${user.id}_${merchantId}`;
+              const trustDocId = `${user.uid}_${merchantId}`;
               const trustRef = doc(db, 'buyer_merchant_trust', trustDocId);
               const trustSnap = await getDoc(trustRef);
               
               if (!trustSnap.exists()) {
                 batch.set(trustRef, {
-                  buyerId: user.id,
+                  buyerId: user.uid,
                   merchantId,
                   currentCount: 1,
                   approvedLimit: 5,
@@ -258,7 +258,7 @@ export default function Cart() {
 
         // 5. Record Wallet Transaction
         batch.set(doc(collection(db, 'wallet_transactions')), {
-          userId: user.id,
+          userId: user.uid,
           type: 'purchase',
           amount: -total,
           status: 'completed',
@@ -273,7 +273,7 @@ export default function Cart() {
 
       // Notify user
       await addDoc(collection(db, 'notifications'), {
-        userId: user.id,
+        userId: user.uid,
         message: isSuspicious 
           ? `تم تعليق طلبك للمراجعة الأمنية`
           : (isInstantDelivery ? `تم إتمام الطلب وتسليم المنتجات بنجاح بقيمة ${total} ج.م` : `تم إرسال طلبك بنجاح بقيمة ${total} ج.م وجاري مراجعته`),

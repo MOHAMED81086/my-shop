@@ -17,25 +17,25 @@ export default function Support() {
   const [replyAttachmentUrl, setReplyAttachmentUrl] = useState('');
 
   useEffect(() => {
-    if (!profile) return;
-    const q = query(collection(db, 'tickets'), where('userId', '==', profile.userId), orderBy('createdAt', 'desc'));
+    if (!user) return;
+    const q = query(collection(db, 'tickets'), where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setTickets(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
     return () => unsubscribe();
-  }, [profile]);
+  }, [user]);
 
   const handleCreateTicket = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!profile) return;
+    if (!user) return;
     setLoading(true);
     try {
       await addDoc(collection(db, 'tickets'), {
-        userId: profile.userId,
+        userId: user.uid,
         subject,
         status: 'open',
         messages: [{
-          senderId: profile.userId,
+          senderId: user.uid,
           senderName: profile?.name || 'User',
           message,
           attachmentUrl: attachmentUrl || null,
@@ -56,10 +56,10 @@ export default function Support() {
 
   const handleReply = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!profile || !activeTicket) return;
+    if (!user || !activeTicket) return;
     try {
       const newMessages = [...activeTicket.messages, {
-        senderId: profile.userId,
+        senderId: user.uid,
         senderName: profile?.name || 'User',
         message: replyMessage,
         attachmentUrl: replyAttachmentUrl || null,
@@ -118,8 +118,8 @@ export default function Support() {
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {activeTicket.messages?.map((msg: any, idx: number) => (
-                <div key={idx} className={`flex flex-col ${msg.senderId === profile.userId ? 'items-start' : 'items-end'}`}>
-                  <div className={`max-w-[80%] p-3 rounded-2xl ${msg.senderId === profile.userId ? 'bg-blue-100 text-blue-900 rounded-tr-none' : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-tl-none'}`}>
+                <div key={idx} className={`flex flex-col ${msg.senderId === user.uid ? 'items-start' : 'items-end'}`}>
+                  <div className={`max-w-[80%] p-3 rounded-2xl ${msg.senderId === user.uid ? 'bg-blue-100 text-blue-900 rounded-tr-none' : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-tl-none'}`}>
                     <p className="text-xs font-bold mb-1 opacity-70">{msg.senderName}</p>
                     <p>{msg.message}</p>
                     {msg.attachmentUrl && (

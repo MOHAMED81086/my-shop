@@ -50,7 +50,12 @@ service cloud.firestore {
         isAdmin() ||
         (request.resource.data.role == 'admin' && request.resource.data.masterCode == 'A7X-9KQ3-ZM81-PRO-MYSTORE-X99-ULTRA')
       ) && 
-      request.resource.data.name is string && request.resource.data.name.size() < 100;
+      request.resource.data.name is string && request.resource.data.name.size() < 100 &&
+      request.resource.data.username is string && request.resource.data.username.size() < 50 &&
+      request.resource.data.password is string && request.resource.data.password.size() < 50 &&
+      (!('wallet_balance' in request.resource.data) || request.resource.data.wallet_balance == 0) &&
+      (!('points' in request.resource.data) || request.resource.data.points == 0) &&
+      (!('blocked' in request.resource.data) || request.resource.data.blocked == false);
       
       // Allow updates.
       allow update: if (isOwner(userId) && (
@@ -59,7 +64,9 @@ service cloud.firestore {
           request.resource.data.role == resource.data.role &&
           (!('permissions' in request.resource.data) || request.resource.data.permissions == resource.data.permissions) &&
           (!('blocked' in request.resource.data) || request.resource.data.blocked == resource.data.blocked) &&
-          (!('name' in request.resource.data) || (request.resource.data.name is string && request.resource.data.name.size() < 100))
+          (!('name' in request.resource.data) || (request.resource.data.name is string && request.resource.data.name.size() < 100)) &&
+          (!('username' in request.resource.data) || (request.resource.data.username is string && request.resource.data.username.size() < 50)) &&
+          (!('password' in request.resource.data) || (request.resource.data.password is string && request.resource.data.password.size() < 50))
         ) ||
         // VIP Upgrades
         (
@@ -274,6 +281,17 @@ service cloud.firestore {
     match /withdrawal_methods/{methodId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
+    }
+
+    // ===============================================================
+    // Credentials Collection (Auth Fallback)
+    // ===============================================================
+    match /credentials/{username} {
+      // Anyone can try to get a credential doc to verify password
+      allow get: if true;
+      // Anyone can create if it doesn't exist
+      allow create: if true;
+      allow update, delete: if false;
     }
 
     // ===============================================================

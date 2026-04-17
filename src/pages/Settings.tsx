@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/useAuthStore';
 import { doc, updateDoc, collection, getDocs, query, where, addDoc, serverTimestamp, onSnapshot, getDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, auth } from '../lib/firebase';
 import { User, Globe, Key, Shield, Bell, LogOut, Save, Award, Crown, MessageSquare, ArrowRight, Share2, Copy, CheckCircle, Smartphone, Download, FileText } from 'lucide-react';
 
+import { signOut, updatePassword } from 'firebase/auth';
 import toast from 'react-hot-toast';
 import { getLevelTitle } from '../lib/utils';
 import { Link } from 'react-router-dom';
 
 export default function Settings() {
-  const { user, profile, logout } = useAuthStore();
+  const { user, profile } = useAuthStore();
   const [activeTab, setActiveTab] = useState('account');
   const [loading, setLoading] = useState(false);
 
@@ -104,13 +105,7 @@ export default function Settings() {
         }
       }
 
-      await updateDoc(doc(db, 'users', profile.userId), { name, photoUrl });
-      
-      // Update local storage
-      const users = JSON.parse(localStorage.getItem('users') || '[]');
-      const updatedUsers = users.map((u: any) => u.id === profile.userId ? { ...u, name, photoUrl } : u);
-      localStorage.setItem('users', JSON.stringify(updatedUsers));
-      
+      await updateDoc(doc(db, 'users', user.uid), { name, photoUrl });
       toast.success('تم حفظ التعديلات بنجاح');
     } catch (error) {
       console.error(error);
@@ -120,20 +115,20 @@ export default function Settings() {
   };
 
   const handleSaveLanguage = async (lang: string) => {
-    if (!profile) return;
+    if (!user) return;
     setLanguage(lang);
     try {
-      await updateDoc(doc(db, 'users', profile.userId), { language: lang });
+      await updateDoc(doc(db, 'users', user.uid), { language: lang });
     } catch (error) {
       console.error(error);
     }
   };
 
   const handleExitRole = async () => {
-    if (!profile) return;
+    if (!user || !profile) return;
     setLoading(true);
     try {
-      await updateDoc(doc(db, 'users', profile.userId), {
+      await updateDoc(doc(db, 'users', user.uid), {
         role: 'buyer',
         permissions: [],
         originalRole: null,
@@ -141,7 +136,7 @@ export default function Settings() {
         masterCode: null
       });
       await addDoc(collection(db, 'logs'), {
-        userId: profile.userId,
+        userId: user.uid,
         action: 'exit_role',
         previousRole: profile.role,
         createdAt: serverTimestamp()
@@ -161,11 +156,11 @@ export default function Settings() {
   };
 
   const handleSaveNotifications = async (key: keyof typeof notifications, value: boolean) => {
-    if (!profile) return;
+    if (!user) return;
     const newSettings = { ...notifications, [key]: value };
     setNotifications(newSettings);
     try {
-      await updateDoc(doc(db, 'users', profile.userId), { notificationSettings: newSettings });
+      await updateDoc(doc(db, 'users', user.uid), { notificationSettings: newSettings });
     } catch (error) {
       console.error(error);
     }
@@ -173,22 +168,19 @@ export default function Settings() {
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!profile || !newPassword) return;
+    if (!auth.currentUser || !newPassword) return;
     setLoading(true);
     try {
-      // Update local storage
-      const users = JSON.parse(localStorage.getItem('users') || '[]');
-      const updatedUsers = users.map((u: any) => u.id === profile.userId ? { ...u, password: newPassword } : u);
-      localStorage.setItem('users', JSON.stringify(updatedUsers));
-      
-      // Optional: Firestore sync (though password isn't usually there for security, but the user included it in the model)
-      await updateDoc(doc(db, 'users', profile.userId), { password: newPassword });
-      
+      await updatePassword(auth.currentUser, newPassword);
       toast.success('تم تغيير كلمة المرور بنجاح');
       setNewPassword('');
     } catch (error: any) {
       console.error(error);
-      toast.error('حدث خطأ أثناء تغيير كلمة المرور');
+      if (error.code === 'auth/requires-recent-login') {
+        toast.error('يرجى تسجيل الخروج والدخول مرة أخرى لتغيير كلمة المرور');
+      } else {
+        toast.error('حدث خطأ أثناء تغيير كلمة المرور');
+      }
     }
     setLoading(false);
   };
@@ -197,14 +189,13 @@ export default function Settings() {
     try {
       if (profile?.role === 'admin') {
         const revertedRole = profile.originalRole || 'buyer';
-        await updateDoc(doc(db, 'users', profile.userId), {
+        await updateDoc(doc(db, 'users', user!.uid), {
           role: revertedRole,
           masterCode: null
         });
       }
       sessionStorage.removeItem('adminSession');
-      logout();
-      window.location.reload();
+      await signOut(auth);
     } catch (error) {
       console.error(error);
     }
@@ -212,7 +203,7 @@ export default function Settings() {
 
   const handleActivateCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!profile || !code) return;
+    if (!user || !code) return;
     setLoading(true);
     try {
       // Check for master code via Firestore or hardcoded fallback
@@ -222,14 +213,14 @@ export default function Settings() {
 
       if (masterCodeSnap.exists() || code === 'A7X-9KQ3-ZM81-PRO-MYSTORE-X99-ULTRA') {
         sessionStorage.setItem('adminSession', 'true');
-        await updateDoc(doc(db, 'users', profile.userId), {
+        await updateDoc(doc(db, 'users', user.uid), {
           originalRole: profile?.role === 'admin' ? profile.originalRole || 'buyer' : profile?.role,
           role: 'admin',
           masterCode: code,
           permissions: ['manage_users', 'manage_orders', 'manage_wallet', 'manage_recharge', 'manage_transfers', 'manage_ranks', 'view_dashboard', 'block_users', 'manage_products', 'manage_settings']
         });
         await addDoc(collection(db, 'logs'), {
-          userId: profile.userId,
+          userId: user.uid,
           action: 'activate_master_code',
           createdAt: serverTimestamp()
         });
@@ -249,12 +240,12 @@ export default function Settings() {
       if (snap.empty) {
         // Fallback for MERCHANT-XXXX hardcoded codes
         if (cleanCode.startsWith('MERCHANT-')) {
-          await updateDoc(doc(db, 'users', profile.userId), {
+          await updateDoc(doc(db, 'users', user.uid), {
             role: 'merchant',
             originalRole: profile?.role === 'admin' ? profile.originalRole || 'buyer' : profile?.role
           });
           await addDoc(collection(db, 'logs'), {
-            userId: profile.userId,
+            userId: user.uid,
             action: 'activate_merchant_code',
             code: cleanCode,
             createdAt: serverTimestamp()
@@ -275,7 +266,7 @@ export default function Settings() {
       const codeData = codeDoc.data();
 
       // Security check for targeted codes
-      if (codeData.targetUserId && codeData.targetUserId !== profile.userId && codeData.targetUserId !== profile.numericId) {
+      if (codeData.targetUserId && codeData.targetUserId !== user.uid && codeData.targetUserId !== profile.numericId) {
         toast.error('هذا الكود مخصص لمستخدم آخر');
         setLoading(false);
         return;
@@ -292,7 +283,7 @@ export default function Settings() {
           ? new Date(Date.now() + codeData.durationHours * 60 * 60 * 1000).toISOString()
           : null;
 
-        await updateDoc(doc(db, 'users', profile.userId), {
+        await updateDoc(doc(db, 'users', user.uid), {
           role: codeData.roleKey,
           roleExpiryDate: expiryDate,
           originalRole: profile?.role === 'admin' ? profile.originalRole || 'buyer' : profile?.role
@@ -304,7 +295,7 @@ export default function Settings() {
         });
 
         await addDoc(collection(db, 'logs'), {
-          userId: profile.userId,
+          userId: user.uid,
           action: 'activate_role_code',
           code: cleanCode,
           role: codeData.roleKey,
@@ -330,7 +321,7 @@ export default function Settings() {
   };
   
   const handleDirectUpgrade = async (role: string, cost: number) => {
-    if (!profile) return;
+    if (!user || !profile) return;
     if (profile.role === role) {
       toast.error('أنت بالفعل تمتلك هذه الرتبة');
       return;
@@ -342,14 +333,14 @@ export default function Settings() {
 
     setLoading(true);
     try {
-      await updateDoc(doc(db, 'users', profile.userId), {
+      await updateDoc(doc(db, 'users', user.uid), {
         role: role,
         wallet_balance: profile.wallet_balance - cost,
         originalRole: profile.role === 'admin' ? profile.originalRole || 'buyer' : profile.role
       });
       
       await addDoc(collection(db, 'wallet_transactions'), {
-        userId: profile.userId,
+        userId: user.uid,
         type: 'upgrade',
         amount: -cost,
         status: 'completed',
@@ -367,7 +358,7 @@ export default function Settings() {
 
   const handleApplyReferral = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!profile || !referralInput) return;
+    if (!user || !profile || !referralInput) return;
     if (referralInput === profile.referralCode) {
       toast.error('لا يمكنك استخدام كود الإحالة الخاص بك');
       return;
@@ -389,7 +380,7 @@ export default function Settings() {
       }
 
       const referrerId = snap.docs[0].id;
-      await updateDoc(doc(db, 'users', profile.userId), {
+      await updateDoc(doc(db, 'users', user.uid), {
         referredBy: referrerId
       });
 
@@ -424,9 +415,6 @@ export default function Settings() {
             </button>
             <button onClick={() => setActiveTab('language')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'language' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 font-semibold' : 'hover:bg-gray-50 dark:hover:bg-gray-750'}`}>
               <Globe className="w-5 h-5" /> اللغة
-            </button>
-            <button onClick={() => setActiveTab('security')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'security' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 font-semibold' : 'hover:bg-gray-50 dark:hover:bg-gray-750'}`}>
-              <Shield className="w-5 h-5" /> الأمان
             </button>
             <button onClick={() => setActiveTab('ranks')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'ranks' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 font-semibold' : 'hover:bg-gray-50 dark:hover:bg-gray-750'}`}>
               <Key className="w-5 h-5" /> الرتب والأكواد
@@ -486,16 +474,40 @@ export default function Settings() {
                   <button type="submit" disabled={loading} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 flex items-center justify-center gap-2">
                     <Save className="w-5 h-5" /> حفظ التعديلات
                   </button>
+                </div>
+              </form>
+
+              <form onSubmit={handleChangePassword} className="space-y-4 mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
+                <h4 className="font-bold text-lg mb-4 flex items-center gap-2">
+                  <Key className="w-5 h-5 text-gray-500" />
+                  تغيير كلمة المرور
+                </h4>
+                <div>
+                  <input 
+                    type="password" 
+                    required 
+                    value={newPassword} 
+                    onChange={e => setNewPassword(e.target.value)} 
+                    placeholder="أدخل كلمة المرور الجديدة" 
+                    className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 outline-none" 
+                  />
+                </div>
+                <button type="submit" disabled={loading} className="w-full py-3 bg-blue-50 text-blue-700 rounded-xl font-bold hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-800/40">
+                  تحديث كلمة المرور
+                </button>
+              </form>
+
+              <div className="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row gap-4">
                   {profile.role !== 'buyer' && (
-                    <button type="button" onClick={handleExitRole} disabled={loading} className="px-6 py-3 bg-orange-100 text-orange-700 rounded-xl font-bold hover:bg-orange-200 flex items-center justify-center gap-2">
+                    <button type="button" onClick={handleExitRole} disabled={loading} className="px-6 py-3 bg-orange-100 text-orange-700 rounded-xl font-bold hover:bg-orange-200 flex items-center justify-center gap-2 w-full sm:w-auto">
                       <LogOut className="w-5 h-5" /> الخروج من الرتبة
                     </button>
                   )}
-                  <button type="button" onClick={handleLogout} className="px-6 py-3 bg-red-100 text-red-700 rounded-xl font-bold hover:bg-red-200 flex items-center justify-center gap-2">
-                    <LogOut className="w-5 h-5" /> خروج
+                  <button type="button" onClick={handleLogout} className="px-6 py-3 bg-red-100 text-red-700 rounded-xl font-bold hover:bg-red-200 flex items-center justify-center gap-2 w-full sm:w-auto">
+                    <LogOut className="w-5 h-5" /> تسجيل خروج
                   </button>
-                </div>
-              </form>
+              </div>
+
             </div>
           )}
 
@@ -516,42 +528,6 @@ export default function Settings() {
                 >
                   <span className="font-bold text-lg">English (LTR)</span>
                   {language === 'en' && <div className="w-4 h-4 rounded-full bg-blue-600"></div>}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'security' && (
-            <div className="max-w-xl">
-              <h3 className="text-2xl font-bold mb-6">الأمان</h3>
-              <form onSubmit={handleChangePassword} className="space-y-4 mb-8">
-                <h4 className="font-bold text-lg mb-2">تغيير كلمة المرور</h4>
-                <div>
-                  <input 
-                    type="password" 
-                    required 
-                    value={newPassword} 
-                    onChange={e => setNewPassword(e.target.value)} 
-                    placeholder="كلمة المرور الجديدة" 
-                    className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700" 
-                  />
-                </div>
-                <button type="submit" disabled={loading} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700">
-                  تحديث كلمة المرور
-                </button>
-              </form>
-
-              <div className="pt-6 border-t border-gray-100 dark:border-gray-700">
-                <h4 className="font-bold text-lg mb-4">الأجهزة النشطة</h4>
-                <div className="p-4 bg-gray-50 dark:bg-gray-750 rounded-xl flex justify-between items-center">
-                  <div>
-                    <p className="font-bold">هذا الجهاز</p>
-                    <p className="text-sm text-gray-500">متصل حالياً</p>
-                  </div>
-                  <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-md">نشط</span>
-                </div>
-                <button onClick={handleLogout} className="w-full mt-4 py-3 bg-red-50 text-red-600 rounded-xl font-bold hover:bg-red-100">
-                  تسجيل الخروج من كل الأجهزة
                 </button>
               </div>
             </div>

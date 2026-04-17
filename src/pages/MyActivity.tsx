@@ -15,15 +15,15 @@ export default function MyActivity() {
   useEffect(() => {
     if (!user) return;
 
-    const unsubOrders = onSnapshot(query(collection(db, 'orders'), where('userId', '==', user.id), orderBy('createdAt', 'desc')), snap => {
+    const unsubOrders = onSnapshot(query(collection(db, 'orders'), where('userId', '==', user.uid), orderBy('createdAt', 'desc')), snap => {
       setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    const unsubRecharges = onSnapshot(query(collection(db, 'recharge_requests'), where('userId', '==', user.id), orderBy('createdAt', 'desc')), snap => {
+    const unsubRecharges = onSnapshot(query(collection(db, 'recharge_requests'), where('userId', '==', user.uid), orderBy('createdAt', 'desc')), snap => {
       setRecharges(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    const unsubTransfers = onSnapshot(query(collection(db, 'wallet_transactions'), where('userId', '==', user.id), where('type', '==', 'transfer'), orderBy('createdAt', 'desc')), snap => {
+    const unsubTransfers = onSnapshot(query(collection(db, 'wallet_transactions'), where('userId', '==', user.uid), where('type', '==', 'transfer'), orderBy('createdAt', 'desc')), snap => {
       setTransfers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 

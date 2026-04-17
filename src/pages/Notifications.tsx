@@ -10,7 +10,7 @@ export default function Notifications() {
 
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'notifications'), where('userId', '==', user.id), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'notifications'), where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setNotifications(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });

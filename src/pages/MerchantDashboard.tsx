@@ -73,14 +73,14 @@ export default function MerchantDashboard() {
 
     setUpgradeLoading(true);
     try {
-      await updateDoc(doc(db, 'users', user.id), {
+      await updateDoc(doc(db, 'users', user.uid), {
         role: 'vip_merchant',
         wallet_balance: profile.wallet_balance - cost,
         originalRole: profile.role === 'admin' ? profile.originalRole || 'merchant' : profile.role
       });
       
       await addDoc(collection(db, 'wallet_transactions'), {
-        userId: user.id,
+        userId: user.uid,
         type: 'upgrade',
         amount: -cost,
         status: 'completed',
@@ -98,8 +98,8 @@ export default function MerchantDashboard() {
 
   useEffect(() => {
     // Load saved withdraw method
-    const savedMethod = localStorage.getItem(`withdrawMethod_${user?.id}`);
-    const savedPhone = localStorage.getItem(`withdrawPhone_${user?.id}`);
+    const savedMethod = localStorage.getItem(`withdrawMethod_${user?.uid}`);
+    const savedPhone = localStorage.getItem(`withdrawPhone_${user?.uid}`);
     if (savedMethod) setWithdrawMethodId(savedMethod);
     if (savedPhone) setWithdrawPhone(savedPhone);
   }, [user]);
@@ -138,23 +138,23 @@ export default function MerchantDashboard() {
     const initDashboard = async () => {
       const isCustom = await checkCustomRank();
       if (user && (isMerchantRole || isCustom)) {
-        const q = query(collection(db, 'products'), where('merchantId', '==', user.id));
+        const q = query(collection(db, 'products'), where('merchantId', '==', user.uid));
         const unsubscribe = onSnapshot(q, (snapshot) => {
           setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
 
-        const qW = query(collection(db, 'withdrawal_requests'), where('merchantId', '==', user.id), orderBy('createdAt', 'desc'));
+        const qW = query(collection(db, 'withdrawal_requests'), where('merchantId', '==', user.uid), orderBy('createdAt', 'desc'));
         const unsubW = onSnapshot(qW, (snapshot) => {
           setWithdrawals(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
 
-        const qAds = query(collection(db, 'ads'), where('ownerId', '==', user.id), orderBy('createdAt', 'desc'));
+        const qAds = query(collection(db, 'ads'), where('ownerId', '==', user.uid), orderBy('createdAt', 'desc'));
         const unsubAds = onSnapshot(qAds, (snapshot) => {
           setAds(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
 
         // Fetch sales for analytics
-        const qSales = query(collection(db, 'orders'), where('merchantId', '==', user.id), orderBy('createdAt', 'desc'));
+        const qSales = query(collection(db, 'orders'), where('merchantId', '==', user.uid), orderBy('createdAt', 'desc'));
         const unsubSales = onSnapshot(qSales, (snapshot) => {
           const orders = snapshot.docs.map(doc => doc.data());
           // Group by date for chart
@@ -273,7 +273,7 @@ export default function MerchantDashboard() {
       } else {
         await addDoc(collection(db, 'products'), {
           ...productData,
-          merchantId: user.id,
+          merchantId: user.uid,
           ratingAverage: 0,
           createdAt: serverTimestamp()
         });
@@ -402,8 +402,8 @@ export default function MerchantDashboard() {
     }
 
     // Save to localStorage
-    localStorage.setItem(`withdrawMethod_${user.id}`, withdrawMethodId);
-    localStorage.setItem(`withdrawPhone_${user.id}`, withdrawPhone);
+    localStorage.setItem(`withdrawMethod_${user.uid}`, withdrawMethodId);
+    localStorage.setItem(`withdrawPhone_${user.uid}`, withdrawPhone);
 
     setWithdrawLoading(true);
     try {
@@ -414,7 +414,7 @@ export default function MerchantDashboard() {
       const selectedMethod = withdrawalMethods.find(m => m.id === withdrawMethodId);
 
       await addDoc(collection(db, 'withdrawal_requests'), {
-        merchantId: user.id,
+        merchantId: user.uid,
         amount,
         fee,
         finalAmount,
@@ -425,7 +425,7 @@ export default function MerchantDashboard() {
         createdAt: serverTimestamp()
       });
 
-      await updateDoc(doc(db, 'users', user.id), {
+      await updateDoc(doc(db, 'users', user.uid), {
         merchant_balance: (profile.merchant_balance || 0) - amount
       });
 
@@ -467,19 +467,19 @@ export default function MerchantDashboard() {
         productId: adType === 'product' ? adProductId : null,
         views: views,
         viewsLeft: views,
-        ownerId: user.id,
+        ownerId: user.uid,
         status: 'active',
         createdAt: serverTimestamp()
       });
 
       if (cost > 0) {
-        await updateDoc(doc(db, 'users', user.id), {
+        await updateDoc(doc(db, 'users', user.uid), {
           wallet_balance: profile.wallet_balance - cost
         });
       }
 
       if (isFreeAd) {
-        await updateDoc(doc(db, 'users', user.id), {
+        await updateDoc(doc(db, 'users', user.uid), {
           hasUsedFreeAd: true
         });
       }
@@ -675,11 +675,11 @@ export default function MerchantDashboard() {
                   multiple 
                   disabled={uploadingImage}
                   onChange={(e) => {
-                    const files = Array.from(e.target.files || []);
+                    const files = Array.from(e.target.files || []) as File[];
                     if (files.length === 0) return;
                     
                     setUploadingImage(true);
-                    const uploadPromises = files.map((file: File) => {
+                    const uploadPromises = files.map(file => {
                       return new Promise<string>((resolve, reject) => {
                         const reader = new FileReader();
                         reader.onload = (ev) => {
@@ -787,7 +787,7 @@ export default function MerchantDashboard() {
               <div>
                 <label className="block text-sm font-medium mb-1">المبلغ (ج.م)</label>
                 <input type="number" required min="100" value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700" />
-                <p className="text-xs text-gray-500 mt-1">سيتم خصم {globalSettings.withdrawFee ?? 0}% رسوم سحب</p>
+                {globalSettings.withdrawFee > 0 && <p className="text-xs text-gray-500 mt-1">سيتم خصم {globalSettings.withdrawFee}% رسوم سحب</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">وسيلة السحب</label>

@@ -21,7 +21,7 @@ export default function Wallet() {
 
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'wallet_transactions'), where('userId', '==', user.id), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'wallet_transactions'), where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
@@ -39,7 +39,7 @@ export default function Wallet() {
       toast.error('رصيد غير كافٍ أو مبلغ غير صالح');
       return;
     }
-    if (transferUserId === user.id) {
+    if (transferUserId === user.uid) {
       toast.error('لا يمكنك التحويل لنفسك');
       return;
     }
@@ -56,7 +56,7 @@ export default function Wallet() {
       }
 
       // Deduct from sender immediately to hold funds
-      const senderRef = doc(db, 'users', user.id);
+      const senderRef = doc(db, 'users', user.uid);
       await updateDoc(senderRef, {
         wallet_balance: increment(-amount)
       });
@@ -65,7 +65,7 @@ export default function Wallet() {
 
       // Log transaction for sender as pending
       await addDoc(collection(db, 'wallet_transactions'), {
-        userId: user.id,
+        userId: user.uid,
         type: 'transfer',
         amount: -amount,
         status: 'pending',
@@ -162,12 +162,14 @@ export default function Wallet() {
         {activeTab === 'transfer' && (
           <div className="max-w-md mx-auto">
             <h3 className="text-xl font-bold mb-4">تحويل أموال لمستخدم آخر</h3>
-            <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-xl mb-6 text-sm text-orange-800 dark:text-orange-200 flex justify-between items-center">
-              <p>يتم خصم رسوم {globalSettings.transferFee ?? 1}% على مبلغ التحويل للمستلم.</p>
-              <Link to="/recharge" className="flex items-center gap-1 text-blue-600 font-bold hover:underline">
-                <Plus className="w-4 h-4" /> شحن الرصيد
-              </Link>
-            </div>
+            {globalSettings.transferFee > 0 && (
+              <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-xl mb-6 text-sm text-orange-800 dark:text-orange-200 flex justify-between items-center">
+                <p>يتم خصم رسوم {globalSettings.transferFee}% على مبلغ التحويل للمستلم.</p>
+                <Link to="/recharge" className="flex items-center gap-1 text-blue-600 font-bold hover:underline">
+                  <Plus className="w-4 h-4" /> شحن الرصيد
+                </Link>
+              </div>
+            )}
             <form onSubmit={handleTransfer} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">معرف المستخدم المستلم (User ID)</label>

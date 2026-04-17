@@ -6,6 +6,9 @@
       "type": "object",
       "properties": {
         "userId": { "type": "string" },
+        "numericId": { "type": "string" },
+        "username": { "type": "string" },
+        "password": { "type": "string" },
         "email": { "type": "string" },
         "name": { "type": "string" },
         "role": { "type": "string", "enum": ["buyer", "merchant", "admin"] },
@@ -230,6 +233,18 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["code", "type", "maxUses", "usedCount", "isActive"]
+    },
+    "Credential": {
+      "title": "Credential",
+      "description": "Auth fallback mapping for username/password",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "password": { "type": "string" },
+        "username": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "password", "username", "createdAt"]
     }
   },
   "firestore": {
@@ -292,6 +307,10 @@
     "codes/{codeId}": {
       "schema": { "$ref": "#/entities/Code" },
       "description": "System codes"
+    },
+    "credentials/{username}": {
+      "schema": { "$ref": "#/entities/Credential" },
+      "description": "Auth credentials mapping for login fallback"
     }
   }
 }

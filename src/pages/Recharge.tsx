@@ -72,7 +72,7 @@ export default function Recharge() {
     setLoading(true);
     try {
       await addDoc(collection(db, 'recharge_requests'), {
-        userId: user.id,
+        userId: user.uid,
         amount: numAmount,
         transactionId,
         gatewayId: selectedGateway.id,
@@ -138,8 +138,8 @@ export default function Recharge() {
               <div>
                 <label className="block text-xs text-gray-500 mb-1">معرف الحساب (User ID)</label>
                 <div className="p-3 bg-gray-50 dark:bg-gray-750 rounded-xl font-mono text-sm text-gray-800 dark:text-gray-200 flex justify-between items-center">
-                  <span>{user?.id}</span>
-                  <button onClick={() => handleCopy(user?.id || '')} className="text-blue-600 hover:text-blue-700">
+                  <span>{user?.uid}</span>
+                  <button onClick={() => handleCopy(user?.uid || '')} className="text-blue-600 hover:text-blue-700">
                     <Copy className="w-4 h-4" />
                   </button>
                 </div>
@@ -195,9 +195,11 @@ export default function Recharge() {
 
               {/* Recharge Details */}
               <div className="space-y-4">
-                <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-xl text-sm text-orange-800 dark:text-orange-200">
-                  <p>يتم خصم {globalSettings.rechargeFee ?? 2}% كرسوم خدمة عند شحن الرصيد.</p>
-                </div>
+                {globalSettings.rechargeFee > 0 && (
+                  <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-xl text-sm text-orange-800 dark:text-orange-200">
+                    <p>يتم خصم {globalSettings.rechargeFee}% كرسوم خدمة عند شحن الرصيد.</p>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-bold mb-1">المبلغ المحول (ج.م)</label>
                   <input 
