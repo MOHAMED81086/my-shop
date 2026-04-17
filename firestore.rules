@@ -39,6 +39,20 @@ service cloud.firestore {
     }
 
     // ===============================================================
+    // Public Users Collection (Non-PII lookup)
+    // ===============================================================
+    match /public_users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId) || isAdmin() || (
+        isAuthenticated() && 
+        // Allow cross-user updates for wallet balance (for transfers) if needed, 
+        // though transfers update the main 'users' collection.
+        // Actually, only allow updates of balance by authenticated users if needed
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['wallet_balance'])
+      );
+    }
+
+    // ===============================================================
     // Users Collection
     // ===============================================================
     match /users/{userId} {
@@ -248,7 +262,12 @@ service cloud.firestore {
     // ===============================================================
     match /codes/{codeId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        isAuthenticated() && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usedCount', 'isActive']) &&
+        request.resource.data.usedCount == resource.data.usedCount + 1
+      );
     }
     // ===============================================================
     // Withdrawal Requests Collection

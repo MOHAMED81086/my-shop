@@ -6,7 +6,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { ArrowDownRight, ArrowUpRight, Plus, Send, Clock, CheckCircle, XCircle, Award } from 'lucide-react';
 
 import { Link } from 'react-router-dom';
-import { getLevelTitle } from '../lib/utils';
+import { getLevelTitle, calculateFee } from '../lib/utils';
 
 export default function Wallet() {
   const { user, profile } = useAuthStore();
@@ -45,12 +45,37 @@ export default function Wallet() {
     }
     setTransferLoading(true);
     try {
-      const { getDoc } = await import('firebase/firestore');
-      // Verify user exists
-      const targetUserRef = doc(db, 'users', transferUserId);
-      const targetUserSnap = await getDoc(targetUserRef);
-      if (!targetUserSnap.exists()) {
+      const { getDoc, query, collection, where, getDocs } = await import('firebase/firestore');
+      
+      // Verify user exists using public_users (either by document ID or numericId)
+      let targetUserRefInfo = null;
+      let targetUserData = null;
+      let finalTargetUserId = transferUserId.trim();
+
+      const targetDocSnap = await getDoc(doc(db, 'public_users', finalTargetUserId));
+      
+      if (targetDocSnap.exists()) {
+         targetUserRefInfo = targetDocSnap.ref;
+         targetUserData = targetDocSnap.data();
+      } else {
+         // try numericId
+         const q = query(collection(db, 'public_users'), where('numericId', '==', finalTargetUserId));
+         const numSnap = await getDocs(q);
+         if (!numSnap.empty) {
+            targetUserRefInfo = numSnap.docs[0].ref;
+            targetUserData = numSnap.docs[0].data();
+            finalTargetUserId = numSnap.docs[0].id;
+         }
+      }
+
+      if (!targetUserRefInfo || !targetUserData) {
         toast.error('المستخدم غير موجود');
+        setTransferLoading(false);
+        return;
+      }
+
+      if (finalTargetUserId === user.uid) {
+        toast.error('لا يمكنك التحويل لنفسك');
         setTransferLoading(false);
         return;
       }
@@ -61,16 +86,14 @@ export default function Wallet() {
         wallet_balance: increment(-amount)
       });
 
-      const targetUserData = targetUserSnap.data();
-
       // Log transaction for sender as pending
       await addDoc(collection(db, 'wallet_transactions'), {
         userId: user.uid,
         type: 'transfer',
         amount: -amount,
         status: 'pending',
-        referenceId: transferUserId,
-        details: `طلب تحويل إلى ${targetUserData.name || transferUserId}`,
+        referenceId: finalTargetUserId,
+        details: `طلب تحويل إلى ${targetUserData.name || finalTargetUserId}`,
         createdAt: serverTimestamp(),
       });
 
@@ -179,7 +202,27 @@ export default function Wallet() {
                 <label className="block text-sm font-medium mb-1">المبلغ (ج.م)</label>
                 <input type="number" required min="1" max={profile?.wallet_balance} value={transferAmount} onChange={e => setTransferAmount(e.target.value)} className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700" />
               </div>
-              <button type="submit" disabled={transferLoading} className="w-full py-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50">
+
+              {/* Financial Dashboard Summary for Trasparency */}
+              {Number(transferAmount) > 0 && (
+                <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 mt-4 space-y-2 text-sm">
+                  <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                    <span>المبلغ الأصلي المخصوم منك:</span>
+                    <span className="font-bold">{calculateFee(transferAmount || 0, globalSettings.transferFee || 0).originalAmount} ج.م</span>
+                  </div>
+                  <div className="flex justify-between text-orange-600 dark:text-orange-400">
+                    <span>رسوم المنصة ({globalSettings.transferFee || 0}%):</span>
+                    <span className="font-bold">- {calculateFee(transferAmount || 0, globalSettings.transferFee || 0).feeAmount} ج.م</span>
+                  </div>
+                  <div className="h-px bg-gray-200 dark:bg-gray-700 my-2"></div>
+                  <div className="flex justify-between text-blue-700 dark:text-blue-400 font-bold text-lg">
+                    <span>الصافي الذي سيصل للمستلم:</span>
+                    <span>{calculateFee(transferAmount || 0, globalSettings.transferFee || 0).netAmount} ج.م</span>
+                  </div>
+                </div>
+              )}
+
+              <button type="submit" disabled={transferLoading} className="w-full py-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 mt-4">
                 {transferLoading ? 'جاري التحويل...' : 'تأكيد التحويل'}
               </button>
             </form>

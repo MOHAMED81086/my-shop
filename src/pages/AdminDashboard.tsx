@@ -6,6 +6,7 @@ import { Key, Users, CreditCard, Package, Shield, LayoutDashboard, Send, Message
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { approveBuyerForMerchant } from '../lib/fraud';
+import { calculateFee } from '../lib/utils';
 
 export default function AdminDashboard() {
   const { user, profile } = useAuthStore();
@@ -349,14 +350,18 @@ export default function AdminDashboard() {
         .sort((a, b) => b.sales - a.sales)
         .slice(0, 5);
 
-      // Total Profit (assuming 2% on recharges, 1% on transfers)
+      // Total Profit (using global settings and proper strict math)
       const txSnap = await getDocs(collection(db, 'wallet_transactions'));
       let profit = 0;
       txSnap.docs.forEach(doc => {
         const tx = doc.data();
         if (tx.status === 'completed') {
-          if (tx.type === 'recharge') profit += Math.abs(tx.amount) * 0.02;
-          if (tx.type === 'transfer') profit += Math.abs(tx.amount) * 0.01;
+          if (tx.type === 'recharge') {
+             profit += calculateFee(Math.abs(tx.amount), globalSettings.rechargeFee ?? 0).feeAmount;
+          }
+          if (tx.type === 'transfer') {
+             profit += calculateFee(Math.abs(tx.amount), globalSettings.transferFee ?? 0).feeAmount;
+          }
         }
       });
 
@@ -429,7 +434,8 @@ export default function AdminDashboard() {
       const userToUpdate = users.find(u => u.id === userId);
       if (userToUpdate) {
         const feePercent = globalSettings.rechargeFee ?? 0;
-        const netAmount = amount * (1 - (feePercent / 100)); // dynamic fee
+        const { netAmount } = calculateFee(amount, feePercent); // Strict Math
+        
         const userUpdate: any = {
           wallet_balance: increment(netAmount)
         };
@@ -537,7 +543,7 @@ export default function AdminDashboard() {
       
       const absAmount = Math.abs(amount);
       const feePercent = globalSettings.transferFee ?? 0;
-      const netAmount = absAmount * (1 - (feePercent / 100)); // dynamic fee
+      const { netAmount } = calculateFee(absAmount, feePercent); // Strict Math
 
       // Add to receiver (Sender already had funds deducted)
       await updateDoc(doc(db, 'users', receiverId), {

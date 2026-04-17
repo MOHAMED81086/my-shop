@@ -121,7 +121,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 let idCounter = 0;
                 while (!isIdUnique && idCounter < 10) {
                   numericId = Math.floor(1000000000 + Math.random() * 9000000000).toString();
-                  const qId = query(collection(db, 'users'), where('numericId', '==', numericId));
+                  const qId = query(collection(db, 'public_users'), where('numericId', '==', numericId));
                   const snapId = await getDocs(qId);
                   if (snapId.empty) {
                     isIdUnique = true;
@@ -145,6 +145,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               } catch (err) {
                 console.error("Error updating profile with missing fields:", err);
               }
+            }
+
+            try {
+              const { setDoc, doc } = await import('firebase/firestore');
+              await setDoc(doc(db, 'public_users', user.uid), {
+                  name: data.name || '',
+                  referralCode: data.referralCode || updates.referralCode || '',
+                  numericId: data.numericId || updates.numericId || ''
+              }, { merge: true });
+            } catch (err) {
+              console.error("Error syncing public profile:", err);
             }
           }
 

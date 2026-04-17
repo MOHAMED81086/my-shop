@@ -370,7 +370,7 @@ export default function Settings() {
 
     setLoading(true);
     try {
-      const q = query(collection(db, 'users'), where('referralCode', '==', referralInput.toUpperCase()));
+      const q = query(collection(db, 'public_users'), where('referralCode', '==', referralInput.toUpperCase()));
       const snap = await getDocs(q);
 
       if (snap.empty) {
