@@ -286,7 +286,8 @@ export default function Settings() {
         await updateDoc(doc(db, 'users', user.uid), {
           role: codeData.roleKey,
           roleExpiryDate: expiryDate,
-          originalRole: profile?.role === 'admin' ? profile.originalRole || 'buyer' : profile?.role
+          originalRole: profile?.role === 'admin' ? profile.originalRole || 'buyer' : profile?.role,
+          appliedCodeId: codeDoc.id
         });
 
         await updateDoc(doc(db, 'codes', codeDoc.id), {

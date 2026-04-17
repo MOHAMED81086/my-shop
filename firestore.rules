@@ -86,6 +86,14 @@ service cloud.firestore {
         (
           (request.resource.data.role == 'vip_buyer' && resource.data.wallet_balance - request.resource.data.wallet_balance >= 300) ||
           (request.resource.data.role == 'vip_merchant' && resource.data.wallet_balance - request.resource.data.wallet_balance >= 500)
+        ) ||
+        // Code Activation
+        (
+          'appliedCodeId' in request.resource.data &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'roleExpiryDate', 'originalRole', 'appliedCodeId']) &&
+          exists(/databases/$(database)/documents/codes/$(request.resource.data.appliedCodeId)) &&
+          get(/databases/$(database)/documents/codes/$(request.resource.data.appliedCodeId)).data.isActive == true &&
+          get(/databases/$(database)/documents/codes/$(request.resource.data.appliedCodeId)).data.roleKey == request.resource.data.role
         )
       )) || isAdmin() || (
         isOwner(userId) && 
