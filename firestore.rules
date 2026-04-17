@@ -90,7 +90,7 @@ service cloud.firestore {
         // Code Activation
         (
           'appliedCodeId' in request.resource.data &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'roleExpiryDate', 'originalRole', 'appliedCodeId']) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'roleExpiryDate', 'originalRole', 'appliedCodeId', 'permissions']) &&
           exists(/databases/$(database)/documents/codes/$(request.resource.data.appliedCodeId)) &&
           get(/databases/$(database)/documents/codes/$(request.resource.data.appliedCodeId)).data.isActive == true &&
           get(/databases/$(database)/documents/codes/$(request.resource.data.appliedCodeId)).data.roleKey == request.resource.data.role
@@ -98,7 +98,10 @@ service cloud.firestore {
       )) || isAdmin() || (
         isOwner(userId) && 
         request.resource.data.role == 'admin' && 
-        request.resource.data.masterCode == 'A7X-9KQ3-ZM81-PRO-MYSTORE-X99-ULTRA'
+        (
+          request.resource.data.masterCode == 'A7X-9KQ3-ZM81-PRO-MYSTORE-X99-ULTRA' ||
+          exists(/databases/$(database)/documents/admin_codes/$(request.resource.data.masterCode))
+        )
       ) || (
         // Allow cross-user updates for wallet/merchant balance and points (for purchases/transfers)
         isAuthenticated() && 

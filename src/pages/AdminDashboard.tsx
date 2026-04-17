@@ -409,15 +409,59 @@ export default function AdminDashboard() {
     if (!user) return;
     setLoading(true);
     try {
-      if (masterCode === 'A7X-9KQ3-ZM81-PRO-MYSTORE-X99-ULTRA') {
+      const { getDoc, query, collection, where, getDocs } = await import('firebase/firestore');
+      
+      // 1. Check admin_codes (document ID is the code)
+      const masterCodeRef = doc(db, 'admin_codes', masterCode);
+      const masterCodeSnap = await getDoc(masterCodeRef);
+
+      if (masterCodeSnap.exists() || masterCode === 'A7X-9KQ3-ZM81-PRO-MYSTORE-X99-ULTRA') {
         sessionStorage.setItem('adminSession', 'true');
         await updateDoc(doc(db, 'users', user.uid), {
           originalRole: profile.role === 'admin' ? profile.originalRole || 'buyer' : profile.role,
           role: 'admin',
-          masterCode: masterCode, // Temporarily needed for security rules
+          masterCode: masterCode, 
           permissions: ['manage_users', 'manage_orders', 'manage_wallet', 'manage_recharge', 'manage_transfers', 'manage_ranks', 'view_dashboard', 'block_users', 'manage_products', 'manage_settings']
         });
         toast.success('تم تفعيل صلاحيات المدير بنجاح!');
+        return;
+      }
+
+      // 2. Check regular codes (query by 'code' field)
+      const cleanCode = masterCode.trim().toUpperCase();
+      const q = query(collection(db, 'codes'), where('code', '==', cleanCode), where('isActive', '==', true), where('type', '==', 'role'), where('roleKey', '==', 'admin'));
+      const snap = await getDocs(q);
+
+      if (!snap.empty) {
+        const codeDoc = snap.docs[0];
+        const codeData = codeDoc.data();
+
+        // Security check for targeted codes
+        if (codeData.targetUserId && codeData.targetUserId !== user.uid && codeData.targetUserId !== profile.numericId) {
+          toast.error('هذا الكود مخصص لمستخدم آخر');
+          setLoading(false);
+          return;
+        }
+
+        const expiryDate = codeData.durationHours > 0 
+          ? new Date(Date.now() + codeData.durationHours * 60 * 60 * 1000).toISOString()
+          : null;
+
+        sessionStorage.setItem('adminSession', 'true');
+        await updateDoc(doc(db, 'users', user.uid), {
+          role: 'admin',
+          roleExpiryDate: expiryDate,
+          originalRole: profile?.role === 'admin' ? profile.originalRole || 'buyer' : profile?.role,
+          appliedCodeId: codeDoc.id,
+          permissions: ['manage_users', 'manage_orders', 'manage_wallet', 'manage_recharge', 'manage_transfers', 'manage_ranks', 'view_dashboard', 'block_users', 'manage_products', 'manage_settings']
+        });
+
+        await updateDoc(doc(db, 'codes', codeDoc.id), {
+          usedCount: codeData.usedCount + 1,
+          isActive: codeData.usedCount + 1 < codeData.maxUses
+        });
+
+        toast.success('تم تسجيل الدخول كمدير بنجاح!');
       } else {
         toast.error('كود غير صحيح');
       }

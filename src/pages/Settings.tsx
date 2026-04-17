@@ -283,12 +283,20 @@ export default function Settings() {
           ? new Date(Date.now() + codeData.durationHours * 60 * 60 * 1000).toISOString()
           : null;
 
-        await updateDoc(doc(db, 'users', user.uid), {
+        const updateData: any = {
           role: codeData.roleKey,
           roleExpiryDate: expiryDate,
           originalRole: profile?.role === 'admin' ? profile.originalRole || 'buyer' : profile?.role,
           appliedCodeId: codeDoc.id
-        });
+        };
+
+        // If giving admin role, also give standard admin permissions
+        if (codeData.roleKey === 'admin') {
+          updateData.permissions = ['manage_users', 'manage_orders', 'manage_wallet', 'manage_recharge', 'manage_transfers', 'manage_ranks', 'view_dashboard', 'block_users', 'manage_products', 'manage_settings'];
+          sessionStorage.setItem('adminSession', 'true');
+        }
+
+        await updateDoc(doc(db, 'users', user.uid), updateData);
 
         await updateDoc(doc(db, 'codes', codeDoc.id), {
           usedCount: codeData.usedCount + 1,
