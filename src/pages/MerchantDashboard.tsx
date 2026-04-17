@@ -675,7 +675,7 @@ export default function MerchantDashboard() {
                   multiple 
                   disabled={uploadingImage}
                   onChange={(e) => {
-                    const files = Array.from(e.target.files || []) as File[];
+                    const files = Array.from(e.target.files || []);
                     if (files.length === 0) return;
                     
                     setUploadingImage(true);

@@ -117,17 +117,7 @@ export default function Layout() {
                 </button>
               </div>
             ) : (
-              <button 
-                onClick={async () => {
-                  try {
-                    await signInWithGoogle();
-                  } catch (err) {
-                    console.error("Login Button Click Error:", err);
-                    toast.error("فشل تسجيل الدخول. تأكد من إعدادات النطاق في كنسول Firebase.");
-                  }
-                }} 
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium transition-colors"
-              >
+              <button onClick={signInWithGoogle} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium transition-colors">
                 {t('login')}
               </button>
             )}
