@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/useAuthStore';
-import { doc, updateDoc, collection, getDocs, query, where, addDoc, serverTimestamp, onSnapshot, getDoc, deleteField } from 'firebase/firestore';
+import { doc, updateDoc, collection, getDocs, query, where, addDoc, serverTimestamp, onSnapshot, getDoc, deleteField, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { User, Globe, Key, Shield, Bell, LogOut, Save, Award, Crown, MessageSquare, ArrowRight, Share2, Copy, CheckCircle, Smartphone, Download, FileText } from 'lucide-react';
 
@@ -125,12 +125,14 @@ export default function Settings() {
   };
 
   const handleExitRole = async () => {
-    if (!user || !profile) return;
+    if (!user || profile?.role === 'buyer') return;
+    if (!window.confirm('هل أنت متأكد من الخروج من الرتبة الحالية والعودة كمشتري؟')) return;
     setLoading(true);
     try {
+      const { deleteField } = await import('firebase/firestore');
       await updateDoc(doc(db, 'users', user.uid), {
         role: 'buyer',
-        permissions: [],
+        permissions: deleteField(),
         originalRole: deleteField(),
         roleExpiryDate: deleteField(),
         masterCode: deleteField(),
@@ -147,7 +149,7 @@ export default function Settings() {
       }
       toast.success('تم الخروج من الرتبة بنجاح');
       setTimeout(() => {
-        window.location.href = '/';
+        window.location.replace('/');
       }, 500);
     } catch (error: any) {
       console.error('Exit role error:', error);
@@ -190,9 +192,12 @@ export default function Settings() {
     try {
       if (profile?.role === 'admin') {
         const revertedRole = profile.originalRole || 'buyer';
+        const { deleteField } = await import('firebase/firestore');
         await updateDoc(doc(db, 'users', user!.uid), {
           role: revertedRole,
-          masterCode: null
+          permissions: deleteField(),
+          masterCode: deleteField(),
+          originalRole: deleteField()
         });
       }
       sessionStorage.removeItem('adminSession');

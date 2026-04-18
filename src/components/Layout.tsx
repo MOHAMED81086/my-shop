@@ -34,9 +34,12 @@ export default function Layout() {
     try {
       if (profile?.role === 'admin') {
         const revertedRole = profile.originalRole || 'buyer';
+        const { deleteField } = await import('firebase/firestore');
         await updateDoc(doc(db, 'users', user!.uid), {
           role: revertedRole,
-          masterCode: null
+          permissions: deleteField(),
+          masterCode: deleteField(),
+          originalRole: deleteField()
         });
       }
       sessionStorage.removeItem('adminSession');
