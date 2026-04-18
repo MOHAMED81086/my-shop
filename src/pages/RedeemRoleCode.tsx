@@ -16,20 +16,27 @@ export default function RedeemRoleCode() {
 
   const handleActivateCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !code) return;
+    const cleanCode = code.trim().toUpperCase();
+    if (!user || !cleanCode) return;
+    
+    if (!profile) {
+      toast.error('جاري تحميل بيانات ملفك الشخصي، يرجى الانتظار للحظة...');
+      return;
+    }
+
     setLoading(true);
     try {
       // Check for master code via Firestore or hardcoded fallback
-      const { getDoc } = await import('firebase/firestore');
-      const masterCodeRef = doc(db, 'admin_codes', code);
+      const { getDoc, updateDoc, collection, query, where, getDocs, addDoc, serverTimestamp, doc } = await import('firebase/firestore');
+      const masterCodeRef = doc(db, 'admin_codes', cleanCode);
       const masterCodeSnap = await getDoc(masterCodeRef);
 
-      if (masterCodeSnap.exists() || code === 'A7X-9KQ3-ZM81-PRO-MYSTORE-X99-ULTRA') {
+      if (masterCodeSnap.exists() || cleanCode === 'A7X-9KQ3-ZM81-PRO-MYSTORE-X99-ULTRA') {
         sessionStorage.setItem('adminSession', 'true');
         await updateDoc(doc(db, 'users', user.uid), {
-          originalRole: profile?.role === 'admin' ? profile.originalRole || 'buyer' : profile?.role,
+          originalRole: profile.role === 'admin' ? profile.originalRole || 'buyer' : profile.role || 'buyer',
           role: 'admin',
-          masterCode: code,
+          masterCode: cleanCode,
           permissions: ['manage_users', 'manage_orders', 'manage_wallet', 'manage_recharge', 'manage_transfers', 'manage_ranks', 'view_dashboard', 'block_users', 'manage_products', 'manage_settings']
         });
         await addDoc(collection(db, 'logs'), {
@@ -40,12 +47,12 @@ export default function RedeemRoleCode() {
         toast.success('تم تفعيل صلاحيات المدير بنجاح!');
         setCode('');
         setLoading(false);
-        navigate('/admin');
+        window.location.href = '/admin';
         return;
       }
 
       // Check regular codes
-      const q = query(collection(db, 'codes'), where('code', '==', code.toUpperCase()), where('isActive', '==', true));
+      const q = query(collection(db, 'codes'), where('code', '==', cleanCode), where('isActive', '==', true));
       const snap = await getDocs(q);
       
       if (snap.empty) {
@@ -58,7 +65,7 @@ export default function RedeemRoleCode() {
       const codeData = codeDoc.data();
 
       // Check if code is targeted to a specific user
-      if (codeData.targetUserId && codeData.targetUserId !== profile?.numericId && codeData.targetUserId !== user.uid) {
+      if (codeData.targetUserId && codeData.targetUserId !== profile.numericId && codeData.targetUserId !== user.uid) {
         toast.error('هذا الكود مخصص لمستخدم آخر');
         setLoading(false);
         return;
@@ -78,7 +85,7 @@ export default function RedeemRoleCode() {
         const updateData: any = {
           role: codeData.roleKey,
           roleExpiryDate: expiryDate,
-          originalRole: profile?.role === 'admin' ? profile.originalRole || 'buyer' : profile?.role,
+          originalRole: profile.role === 'admin' ? profile.originalRole || 'buyer' : profile.role || 'buyer',
           appliedCodeId: codeDoc.id
         };
 
@@ -89,7 +96,6 @@ export default function RedeemRoleCode() {
         }
 
         await updateDoc(doc(db, 'users', user.uid), updateData);
-
         await updateDoc(doc(db, 'codes', codeDoc.id), {
           usedCount: codeData.usedCount + 1,
           isActive: codeData.usedCount + 1 < codeData.maxUses
@@ -98,7 +104,7 @@ export default function RedeemRoleCode() {
         await addDoc(collection(db, 'logs'), {
           userId: user.uid,
           action: 'activate_role_code',
-          code: code.toUpperCase(),
+          code: cleanCode,
           role: codeData.roleKey,
           createdAt: serverTimestamp()
         });
@@ -125,7 +131,7 @@ export default function RedeemRoleCode() {
       } else if (codeData.type === 'balance') {
         const amount = Number(codeData.amount || 0);
         await updateDoc(doc(db, 'users', user.uid), {
-          wallet_balance: (profile?.wallet_balance || 0) + amount
+          wallet_balance: (profile.wallet_balance || 0) + amount
         });
 
         await updateDoc(doc(db, 'codes', codeDoc.id), {
@@ -138,14 +144,14 @@ export default function RedeemRoleCode() {
           amount: amount,
           type: 'recharge',
           status: 'completed',
-          description: `شحن رصيد عبر كود: ${code.toUpperCase()}`,
+          description: `شحن رصيد عبر كود: ${cleanCode}`,
           createdAt: serverTimestamp()
         });
 
         await addDoc(collection(db, 'logs'), {
           userId: user.uid,
           action: 'activate_balance_code',
-          code: code.toUpperCase(),
+          code: cleanCode,
           amount: amount,
           createdAt: serverTimestamp()
         });
@@ -156,9 +162,9 @@ export default function RedeemRoleCode() {
       } else {
         toast.error('نوع الكود غير معروف.');
       }
-    } catch (error) {
-      console.error(error);
-      toast.error('حدث خطأ أثناء تفعيل الكود');
+    } catch (error: any) {
+      console.error("Redeem error:", error);
+      toast.error(error.message || 'حدث خطأ أثناء تفعيل الكود');
     }
     setLoading(false);
   };

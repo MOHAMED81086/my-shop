@@ -203,20 +203,27 @@ export default function Settings() {
 
   const handleActivateCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !code) return;
+    const cleanCode = code.trim().toUpperCase();
+    if (!user || !cleanCode) return;
+    
+    if (!profile) {
+      toast.error('جاري تحميل بيانات ملفك الشخصي، يرجى المحاولة بعد لحظات...');
+      return;
+    }
+
     setLoading(true);
     try {
       // Check for master code via Firestore or hardcoded fallback
       const { getDoc } = await import('firebase/firestore');
-      const masterCodeRef = doc(db, 'admin_codes', code);
+      const masterCodeRef = doc(db, 'admin_codes', cleanCode);
       const masterCodeSnap = await getDoc(masterCodeRef);
 
-      if (masterCodeSnap.exists() || code === 'A7X-9KQ3-ZM81-PRO-MYSTORE-X99-ULTRA') {
+      if (masterCodeSnap.exists() || cleanCode === 'A7X-9KQ3-ZM81-PRO-MYSTORE-X99-ULTRA') {
         sessionStorage.setItem('adminSession', 'true');
         await updateDoc(doc(db, 'users', user.uid), {
-          originalRole: profile?.role === 'admin' ? profile.originalRole || 'buyer' : profile?.role,
+          originalRole: profile.role === 'admin' ? profile.originalRole || 'buyer' : profile.role || 'buyer',
           role: 'admin',
-          masterCode: code,
+          masterCode: cleanCode,
           permissions: ['manage_users', 'manage_orders', 'manage_wallet', 'manage_recharge', 'manage_transfers', 'manage_ranks', 'view_dashboard', 'block_users', 'manage_products', 'manage_settings']
         });
         await addDoc(collection(db, 'logs'), {
@@ -227,13 +234,11 @@ export default function Settings() {
         toast.success('تم تفعيل صلاحيات المدير بنجاح!');
         setCode('');
         setLoading(false);
-        // Force reload to update UI immediately
         window.location.href = '/admin';
         return;
       }
 
       // Check regular codes
-      const cleanCode = code.trim().toUpperCase();
       const q = query(collection(db, 'codes'), where('code', '==', cleanCode), where('isActive', '==', true));
       const snap = await getDocs(q);
       
@@ -267,7 +272,7 @@ export default function Settings() {
         const updateData: any = {
           role: codeData.roleKey,
           roleExpiryDate: expiryDate,
-          originalRole: profile?.role === 'admin' ? profile.originalRole || 'buyer' : profile?.role,
+          originalRole: profile.role === 'admin' ? profile.originalRole || 'buyer' : profile.role || 'buyer',
           appliedCodeId: codeDoc.id
         };
 
@@ -278,7 +283,6 @@ export default function Settings() {
         }
 
         await updateDoc(doc(db, 'users', user.uid), updateData);
-
         await updateDoc(doc(db, 'codes', codeDoc.id), {
           usedCount: codeData.usedCount + 1,
           isActive: codeData.usedCount + 1 < codeData.maxUses
@@ -299,7 +303,6 @@ export default function Settings() {
         if (codeData.roleKey === 'merchant') roleName = 'تاجر';
         if (codeData.roleKey === 'admin') roleName = 'مدير (Admin)';
         
-        // Check for custom rank name from Firestore
         try {
           const rankSnap = await getDoc(doc(db, 'ranks', codeData.roleKey));
           if (rankSnap.exists()) {
@@ -314,7 +317,7 @@ export default function Settings() {
       } else if (codeData.type === 'balance') {
         const amount = Number(codeData.amount || 0);
         await updateDoc(doc(db, 'users', user.uid), {
-          wallet_balance: (profile?.wallet_balance || 0) + amount
+          wallet_balance: (profile.wallet_balance || 0) + amount
         });
 
         await updateDoc(doc(db, 'codes', codeDoc.id), {
@@ -344,9 +347,9 @@ export default function Settings() {
       } else {
         toast.error('نوع الكود غير معروف.');
       }
-    } catch (error) {
-      console.error(error);
-      toast.error('حدث خطأ أثناء تفعيل الكود');
+    } catch (error: any) {
+      console.error("Code activation error:", error);
+      toast.error(error.message || 'حدث خطأ أثناء تفعيل الكود');
     }
     setLoading(false);
   };
