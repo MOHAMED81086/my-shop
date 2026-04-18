@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/useAuthStore';
-import { doc, updateDoc, collection, getDocs, query, where, addDoc, serverTimestamp, onSnapshot, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, getDocs, query, where, addDoc, serverTimestamp, onSnapshot, getDoc, deleteField } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { User, Globe, Key, Shield, Bell, LogOut, Save, Award, Crown, MessageSquare, ArrowRight, Share2, Copy, CheckCircle, Smartphone, Download, FileText } from 'lucide-react';
 
@@ -131,10 +131,10 @@ export default function Settings() {
       await updateDoc(doc(db, 'users', user.uid), {
         role: 'buyer',
         permissions: [],
-        originalRole: null,
-        roleExpiryDate: null,
-        masterCode: null,
-        appliedCodeId: null
+        originalRole: deleteField(),
+        roleExpiryDate: deleteField(),
+        masterCode: deleteField(),
+        appliedCodeId: deleteField()
       });
       await addDoc(collection(db, 'logs'), {
         userId: user.uid,
@@ -148,10 +148,10 @@ export default function Settings() {
       toast.success('تم الخروج من الرتبة بنجاح');
       setTimeout(() => {
         window.location.href = '/';
-      }, 1000);
-    } catch (error) {
-      console.error(error);
-      toast.error('حدث خطأ أثناء الخروج من الرتبة');
+      }, 500);
+    } catch (error: any) {
+      console.error('Exit role error:', error);
+      toast.error(error.message || 'حدث خطأ أثناء الخروج من الرتبة');
     }
     setLoading(false);
   };
