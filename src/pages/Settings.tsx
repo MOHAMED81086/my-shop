@@ -214,18 +214,19 @@ export default function Settings() {
     setLoading(true);
     try {
       // Check for master code via Firestore or hardcoded fallback
-      const { getDoc } = await import('firebase/firestore');
       const masterCodeRef = doc(db, 'admin_codes', cleanCode);
       const masterCodeSnap = await getDoc(masterCodeRef);
 
       if (masterCodeSnap.exists() || cleanCode === 'A7X-9KQ3-ZM81-PRO-MYSTORE-X99-ULTRA') {
         sessionStorage.setItem('adminSession', 'true');
-        await updateDoc(doc(db, 'users', user.uid), {
+        const adminData = {
           originalRole: profile.role === 'admin' ? profile.originalRole || 'buyer' : profile.role || 'buyer',
           role: 'admin',
           masterCode: cleanCode,
           permissions: ['manage_users', 'manage_orders', 'manage_wallet', 'manage_recharge', 'manage_transfers', 'manage_ranks', 'view_dashboard', 'block_users', 'manage_products', 'manage_settings']
-        });
+        };
+        
+        await updateDoc(doc(db, 'users', user.uid), adminData);
         await addDoc(collection(db, 'logs'), {
           userId: user.uid,
           action: 'activate_master_code',
@@ -269,23 +270,26 @@ export default function Settings() {
           ? new Date(Date.now() + codeData.durationHours * 60 * 60 * 1000).toISOString()
           : null;
 
-        const updateData: any = {
+        const updatedRoleData: any = {
           role: codeData.roleKey,
           roleExpiryDate: expiryDate,
           originalRole: profile.role === 'admin' ? profile.originalRole || 'buyer' : profile.role || 'buyer',
           appliedCodeId: codeDoc.id
         };
 
-        // If giving admin role, also give standard admin permissions
+        // If giving admin role via normal code
         if (codeData.roleKey === 'admin') {
-          updateData.permissions = ['manage_users', 'manage_orders', 'manage_wallet', 'manage_recharge', 'manage_transfers', 'manage_ranks', 'view_dashboard', 'block_users', 'manage_products', 'manage_settings'];
+          updatedRoleData.permissions = ['manage_users', 'manage_orders', 'manage_wallet', 'manage_recharge', 'manage_transfers', 'manage_ranks', 'view_dashboard', 'block_users', 'manage_products', 'manage_settings'];
           sessionStorage.setItem('adminSession', 'true');
         }
 
-        await updateDoc(doc(db, 'users', user.uid), updateData);
+        // Apply update to user FIRST
+        await updateDoc(doc(db, 'users', user.uid), updatedRoleData);
+        
+        // Then update code status
         await updateDoc(doc(db, 'codes', codeDoc.id), {
-          usedCount: codeData.usedCount + 1,
-          isActive: codeData.usedCount + 1 < codeData.maxUses
+          usedCount: (codeData.usedCount || 0) + 1,
+          isActive: (codeData.usedCount || 0) + 1 < (codeData.maxUses || 1)
         });
 
         await addDoc(collection(db, 'logs'), {
@@ -296,33 +300,29 @@ export default function Settings() {
           createdAt: serverTimestamp()
         });
 
-        // Try to get rank name for better UX
-        let roleName = codeData.roleKey;
-        if (codeData.roleKey === 'vip_buyer') roleName = 'عميل VIP';
-        if (codeData.roleKey === 'vip_merchant') roleName = 'تاجر VIP';
-        if (codeData.roleKey === 'merchant') roleName = 'تاجر';
-        if (codeData.roleKey === 'admin') roleName = 'مدير (Admin)';
-        
+        // UI Feedback
+        let roleName = codeData.roleName || codeData.roleKey;
         try {
           const rankSnap = await getDoc(doc(db, 'ranks', codeData.roleKey));
           if (rankSnap.exists()) {
             roleName = rankSnap.data().name;
           }
-        } catch (e) {
-          console.warn("Rank fetch failed", e);
-        }
-        
+        } catch (e) {}
+
         toast.success(`تم تفعيل رتبة ${roleName} بنجاح!`);
         setCode('');
       } else if (codeData.type === 'balance') {
         const amount = Number(codeData.amount || 0);
+        
+        // Update user balance
         await updateDoc(doc(db, 'users', user.uid), {
           wallet_balance: (profile.wallet_balance || 0) + amount
         });
 
+        // Update code status
         await updateDoc(doc(db, 'codes', codeDoc.id), {
-          usedCount: codeData.usedCount + 1,
-          isActive: codeData.usedCount + 1 < codeData.maxUses
+          usedCount: (codeData.usedCount || 0) + 1,
+          isActive: (codeData.usedCount || 0) + 1 < (codeData.maxUses || 1)
         });
 
         await addDoc(collection(db, 'wallet_transactions'), {
@@ -334,21 +334,11 @@ export default function Settings() {
           createdAt: serverTimestamp()
         });
 
-        await addDoc(collection(db, 'logs'), {
-          userId: user.uid,
-          action: 'activate_balance_code',
-          code: cleanCode,
-          amount: amount,
-          createdAt: serverTimestamp()
-        });
-
         toast.success(`تم إضافة ${amount} ج.م إلى رصيدك بنجاح!`);
         setCode('');
-      } else {
-        toast.error('نوع الكود غير معروف.');
       }
     } catch (error: any) {
-      console.error("Code activation error:", error);
+      console.error("Activation error:", error);
       toast.error(error.message || 'حدث خطأ أثناء تفعيل الكود');
     }
     setLoading(false);

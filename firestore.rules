@@ -79,59 +79,51 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       
-      // Allow user creation. Default role should be 'buyer'.
       allow create: if isOwner(userId) && (
         request.resource.data.role == 'buyer' ||
         isAdmin() ||
         (request.resource.data.role == 'admin' && request.resource.data.get('masterCode', '') == 'A7X-9KQ3-ZM81-PRO-MYSTORE-X99-ULTRA')
-      ) && 
-      request.resource.data.get('name', '') is string && request.resource.data.get('name', '').size() < 100 &&
-      request.resource.data.get('username', '') is string && request.resource.data.get('username', '').size() < 50 &&
-      request.resource.data.get('password', '') is string && request.resource.data.get('password', '').size() < 50 &&
-      (!('wallet_balance' in request.resource.data) || request.resource.data.wallet_balance == 0) &&
-      (!('points' in request.resource.data) || request.resource.data.points == 0) &&
-      (!('blocked' in request.resource.data) || request.resource.data.blocked == false);
+      );
       
-      // Allow updates.
       allow update: if (isOwner(userId) && (
         // Standard updates (no critical field changes)
-        (
-          request.resource.data.get('role', resource.data.role) == resource.data.role &&
-          (!('permissions' in request.resource.data) || request.resource.data.permissions == resource.data.get('permissions', [])) &&
-          (!('blocked' in request.resource.data) || request.resource.data.blocked == resource.data.get('blocked', false)) &&
-          (!('masterCode' in request.resource.data) || request.resource.data.get('masterCode', '') == resource.data.get('masterCode', '')) &&
-          (!('name' in request.resource.data) || (request.resource.data.name is string && request.resource.data.name.size() < 100)) &&
-          (!('username' in request.resource.data) || (request.resource.data.username is string && request.resource.data.username.size() < 50))
-        ) ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'name', 'photoUrl', 'phone', 'language', 'notificationSettings', 'bio', 'socialLinks', 'theme', 'password', 'username'
+        ]) ||
+        
         // VIP Upgrades (Direct purchase)
         (
-          (request.resource.data.role == 'vip_buyer' && resource.data.get('wallet_balance', 0) - request.resource.data.wallet_balance >= 300) ||
-          (request.resource.data.role == 'vip_merchant' && resource.data.get('wallet_balance', 0) - request.resource.data.wallet_balance >= 500)
-        ) ||
-        // Code Activation (Regular and Admin codes)
-        (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'wallet_balance']) &&
           (
-            // Regular Role Code
-            ('appliedCodeId' in request.resource.data &&
-             exists(/databases/$(database)/documents/codes/$(request.resource.data.appliedCodeId)) &&
-             get(/databases/$(database)/documents/codes/$(request.resource.data.appliedCodeId)).data.get('isActive', false) == true &&
-             get(/databases/$(database)/documents/codes/$(request.resource.data.appliedCodeId)).data.get('roleKey', '') == request.resource.data.role)
-            ||
-            // Admin Access (Master Code or Admin Code)
-            (request.resource.data.get('role', '') == 'admin' &&
-             (request.resource.data.get('masterCode', '') == 'A7X-9KQ3-ZM81-PRO-MYSTORE-X99-ULTRA' ||
-              exists(/databases/$(database)/documents/admin_codes/$(request.resource.data.get('masterCode', '')))))
-          ) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'roleExpiryDate', 'originalRole', 'appliedCodeId', 'permissions', 'masterCode'])
+            (request.resource.data.role == 'vip_buyer' && resource.data.get('wallet_balance', 0) - request.resource.data.wallet_balance >= 300) ||
+            (request.resource.data.role == 'vip_merchant' && resource.data.get('wallet_balance', 0) - request.resource.data.wallet_balance >= 500)
+          )
+        ) ||
+        
+        // Code Activation (Regular Role Code)
+        (
+          request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'appliedCodeId']) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'appliedCodeId', 'originalRole', 'roleExpiryDate', 'permissions']) &&
+          exists(/databases/$(database)/documents/codes/$(request.resource.data.appliedCodeId)) &&
+          get(/databases/$(database)/documents/codes/$(request.resource.data.appliedCodeId)).data.get('isActive', false) == true &&
+          get(/databases/$(database)/documents/codes/$(request.resource.data.appliedCodeId)).data.get('roleKey', '') == request.resource.data.role
+        ) ||
+        
+        // Code Activation (Admin Access)
+        (
+          request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'masterCode']) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'masterCode', 'originalRole', 'permissions']) &&
+          request.resource.data.get('role', '') == 'admin' &&
+          (request.resource.data.get('masterCode', '') == 'A7X-9KQ3-ZM81-PRO-MYSTORE-X99-ULTRA' ||
+           exists(/databases/$(database)/documents/admin_codes/$(request.resource.data.get('masterCode', ''))))
         )
       )) || isAdmin() || (
-        // Allow cross-user updates for transactions
+        // System/Cross-user Balance Updates (Allow anyone to update specifically balance/points if logic matches)
         isAuthenticated() && 
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['wallet_balance', 'merchant_balance', 'points', 'referralCharged', 'referralCompleted']) &&
-        (request.resource.data.get('wallet_balance', 0) is number) &&
-        (request.resource.data.get('merchant_balance', 0) is number) &&
-        (request.resource.data.get('points', 0) is number)
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['wallet_balance', 'merchant_balance', 'points', 'referralCharged', 'referralCompleted'])
       );
+      
+      allow delete: if isAdmin();
     }
 
     // ===============================================================
