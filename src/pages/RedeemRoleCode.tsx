@@ -103,11 +103,58 @@ export default function RedeemRoleCode() {
           createdAt: serverTimestamp()
         });
 
-        toast.success(`تم تفعيل رتبة ${codeData.roleKey} بنجاح!`);
+        // Try to get rank name
+        let roleName = codeData.roleKey;
+        if (codeData.roleKey === 'vip_buyer') roleName = 'عميل VIP';
+        if (codeData.roleKey === 'vip_merchant') roleName = 'تاجر VIP';
+        if (codeData.roleKey === 'merchant') roleName = 'تاجر';
+        if (codeData.roleKey === 'admin') roleName = 'مدير (Admin)';
+        
+        try {
+          const rankSnap = await getDoc(doc(db, 'ranks', codeData.roleKey));
+          if (rankSnap.exists()) {
+            roleName = rankSnap.data().name;
+          }
+        } catch (e) {
+          console.warn("Rank fetch failed", e);
+        }
+
+        toast.success(`تم تفعيل رتبة ${roleName} بنجاح!`);
         setCode('');
         navigate('/');
+      } else if (codeData.type === 'balance') {
+        const amount = Number(codeData.amount || 0);
+        await updateDoc(doc(db, 'users', user.uid), {
+          wallet_balance: (profile?.wallet_balance || 0) + amount
+        });
+
+        await updateDoc(doc(db, 'codes', codeDoc.id), {
+          usedCount: codeData.usedCount + 1,
+          isActive: codeData.usedCount + 1 < codeData.maxUses
+        });
+
+        await addDoc(collection(db, 'wallet_transactions'), {
+          userId: user.uid,
+          amount: amount,
+          type: 'recharge',
+          status: 'completed',
+          description: `شحن رصيد عبر كود: ${code.toUpperCase()}`,
+          createdAt: serverTimestamp()
+        });
+
+        await addDoc(collection(db, 'logs'), {
+          userId: user.uid,
+          action: 'activate_balance_code',
+          code: code.toUpperCase(),
+          amount: amount,
+          createdAt: serverTimestamp()
+        });
+
+        toast.success(`تم إضافة ${amount} ج.م إلى رصيدك بنجاح!`);
+        setCode('');
+        navigate('/wallet');
       } else {
-        toast.error('هذا الكود ليس كود رتبة.');
+        toast.error('نوع الكود غير معروف.');
       }
     } catch (error) {
       console.error(error);

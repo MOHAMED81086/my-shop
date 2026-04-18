@@ -151,7 +151,8 @@ export default function AdminDashboard() {
     roleKey: '',
     durationHours: 24,
     maxUses: 1,
-    targetUserId: ''
+    targetUserId: '',
+    amount: 0
   });
 
   // Events state
@@ -1022,7 +1023,7 @@ export default function AdminDashboard() {
         createdAt: serverTimestamp()
       });
       setShowCodeModal(false);
-      setCodeForm({ code: '', type: 'role', roleKey: '', durationHours: 24, maxUses: 1, targetUserId: '' });
+      setCodeForm({ code: '', type: 'role', roleKey: '', durationHours: 24, maxUses: 1, targetUserId: '', amount: 0 });
       toast.success('تم إنشاء الكود بنجاح');
     } catch (error) {
       console.error(error);
@@ -1371,6 +1372,7 @@ export default function AdminDashboard() {
                       <label className="block text-sm mb-1 text-gray-500">الرتبة</label>
                       <select value={selectedUser.role} onChange={e => setSelectedUser({...selectedUser, role: e.target.value})} className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700">
                         {predefinedRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                        {ranks.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                         <option value="admin">Admin</option>
                       </select>
                     </div>
@@ -2488,7 +2490,9 @@ export default function AdminDashboard() {
                     <tr key={code.id} className="border-b border-gray-50 dark:border-gray-750">
                       <td className="py-4 font-mono font-bold text-blue-600">{code.code}</td>
                       <td className="py-4">{code.type === 'role' ? 'ترقية رتبة' : 'رصيد'}</td>
-                      <td className="py-4 font-bold">{code.roleKey}</td>
+                      <td className="py-4 font-bold">
+                        {code.type === 'role' ? code.roleKey : `${code.amount} ج.م`}
+                      </td>
                       <td className="py-4">{code.usedCount} / {code.maxUses}</td>
                       <td className="py-4 text-sm text-gray-500">{code.targetUserId || 'الكل'}</td>
                       <td className="py-4 flex gap-2">
@@ -2522,13 +2526,28 @@ export default function AdminDashboard() {
                   <input type="text" required value={codeForm.code} onChange={e => setCodeForm({...codeForm, code: e.target.value})} className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 font-mono" />
                 </div>
                 <div>
-                  <label className="block text-sm mb-1">الرتبة المستهدفة</label>
-                  <select value={codeForm.roleKey} onChange={e => setCodeForm({...codeForm, roleKey: e.target.value})} className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700">
-                    <option value="">اختر رتبة</option>
-                    {predefinedRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                    {ranks.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  <label className="block text-sm mb-1">نوع الكود</label>
+                  <select value={codeForm.type} onChange={e => setCodeForm({...codeForm, type: e.target.value as any})} className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700">
+                    <option value="role">ترقية رتبة</option>
+                    <option value="balance">شحن رصيد</option>
                   </select>
                 </div>
+                {codeForm.type === 'role' ? (
+                  <div>
+                    <label className="block text-sm mb-1">الرتبة المستهدفة</label>
+                    <select value={codeForm.roleKey} onChange={e => setCodeForm({...codeForm, roleKey: e.target.value})} className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700">
+                      <option value="">اختر رتبة</option>
+                      {predefinedRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                      {ranks.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm mb-1">المبلغ (ج.م)</label>
+                    <input type="number" required value={codeForm.amount || 0} onChange={e => setCodeForm({...codeForm, amount: Number(e.target.value)})} className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700" />
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm mb-1">مخصص لمستخدم معين (اختياري - أدخل ID)</label>
                   <input type="text" value={codeForm.targetUserId} onChange={e => setCodeForm({...codeForm, targetUserId: e.target.value})} placeholder="اتركه فارغاً للكل" className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700" />

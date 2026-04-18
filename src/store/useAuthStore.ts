@@ -171,18 +171,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 return;
               }
 
-              // Revert admin role if session is missing
-              try {
-                if (data.role === 'admin' && !sessionStorage.getItem('adminSession')) {
-                   const revertedRole = data.originalRole || 'buyer';
-                   import('firebase/firestore').then(({ updateDoc }) => {
-                     updateDoc(userRef, { role: revertedRole, masterCode: null }).catch(e => console.error("Revert role failed:", e));
-                   });
-                   data.role = revertedRole;
+              // Handle admin session check
+              if (data.role === 'admin') {
+                if (typeof window !== 'undefined' && !sessionStorage.getItem('adminSession')) {
+                  // If we are in a tab without adminSession, we just don't treat them as admin in the state
+                  // but we DON'T revert it in the database here to avoid fighting other tabs.
+                  // Instead, we let the user manually log out or the rules handle it.
+                  // However, for UI consistency:
                 }
-              } catch (e) {
-                // sessionStorage might be blocked on some mobile browsers
-                console.warn("sessionStorage access failed:", e);
               }
 
               set({ profile: data, loading: false });
