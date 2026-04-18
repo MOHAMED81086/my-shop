@@ -7,9 +7,10 @@ import { User, Globe, Key, Shield, Bell, LogOut, Save, Award, Crown, MessageSqua
 import { signOut, updatePassword } from 'firebase/auth';
 import toast from 'react-hot-toast';
 import { getLevelTitle } from '../lib/utils';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 export default function Settings() {
+  const navigate = useNavigate();
   const { user, profile } = useAuthStore();
   const [activeTab, setActiveTab] = useState('account');
   const [loading, setLoading] = useState(false);
@@ -126,7 +127,6 @@ export default function Settings() {
 
   const handleExitRole = async () => {
     if (!user || profile?.role === 'buyer') return;
-    if (!window.confirm('هل أنت متأكد من الخروج من الرتبة الحالية والعودة كمشتري؟')) return;
     setLoading(true);
     try {
       const { deleteField } = await import('firebase/firestore');
@@ -149,7 +149,7 @@ export default function Settings() {
       }
       toast.success('تم الخروج من الرتبة بنجاح');
       setTimeout(() => {
-        window.location.replace('/');
+        navigate('/');
       }, 500);
     } catch (error: any) {
       console.error('Exit role error:', error);
@@ -241,7 +241,7 @@ export default function Settings() {
         toast.success('تم تفعيل صلاحيات المدير بنجاح!');
         setCode('');
         setLoading(false);
-        window.location.href = '/admin';
+        navigate('/admin');
         return;
       }
 

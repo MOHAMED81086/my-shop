@@ -69,15 +69,17 @@ export const loginWithUsername = async (username: string, password: string) => {
     const result = await signInWithEmailAndPassword(auth, email, password);
     return result.user;
   } catch (error: any) {
-    console.error("Login Error:", error);
 
     if (error.code === 'auth/operation-not-allowed' || error.code === 'auth/admin-restricted-operation') {
+      console.error("Login Error:", error);
       throw error;
     }
 
     if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
       throw new Error('اسم المستخدم أو كلمة المرور غير صحيحة');
     }
+    
+    console.error("Login Error:", error);
     throw error;
   }
 };

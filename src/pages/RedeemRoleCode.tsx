@@ -49,7 +49,7 @@ export default function RedeemRoleCode() {
         toast.success('تم تفعيل صلاحيات المدير بنجاح!');
         setCode('');
         setLoading(false);
-        window.location.href = '/admin';
+        navigate('/admin');
         return;
       }
 
