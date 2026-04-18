@@ -238,25 +238,6 @@ export default function Settings() {
       const snap = await getDocs(q);
       
       if (snap.empty) {
-        // Fallback for MERCHANT-XXXX hardcoded codes
-        if (cleanCode.startsWith('MERCHANT-')) {
-          await updateDoc(doc(db, 'users', user.uid), {
-            role: 'merchant',
-            originalRole: profile?.role === 'admin' ? profile.originalRole || 'buyer' : profile?.role
-          });
-          await addDoc(collection(db, 'logs'), {
-            userId: user.uid,
-            action: 'activate_merchant_code',
-            code: cleanCode,
-            createdAt: serverTimestamp()
-          });
-          toast.success('تم تفعيل رتبة تاجر بنجاح!');
-          setCode('');
-          setLoading(false);
-          window.location.href = '/merchant';
-          return;
-        }
-
         toast.error('كود غير صحيح أو منتهي الصلاحية');
         setLoading(false);
         return;

@@ -65,6 +65,9 @@ export default function Layout() {
     );
   }
 
+  const isMerchant = ['merchant', 'vip_merchant', 'admin'].includes(profile?.role || '') || customRank?.canSell;
+  const isSupport = ['support', 'admin'].includes(profile?.role || '') || customRank?.canSupport;
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100" dir={i18n.language === 'en' ? 'ltr' : 'rtl'}>
       <header className="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-50">
@@ -77,8 +80,8 @@ export default function Layout() {
             {user && <Link to="/my-activity" className="hover:text-blue-600 font-medium transition-colors">{t('my_activity')}</Link>}
             {user && <Link to="/wallet" className="hover:text-blue-600 font-medium flex items-center gap-1 transition-colors"><Wallet className="w-4 h-4"/> {t('wallet')}</Link>}
             {profile?.role === 'admin' && <Link to="/admin" className="hover:text-blue-600 font-medium flex items-center gap-1 transition-colors"><LayoutDashboard className="w-4 h-4"/> {t('admin_panel')}</Link>}
-            {(profile?.role === 'merchant' || customRank?.canSell) && <Link to="/merchant" className="hover:text-blue-600 font-medium flex items-center gap-1 transition-colors"><LayoutDashboard className="w-4 h-4"/> {t('merchant_panel')}</Link>}
-            {(profile?.role === 'support' || customRank?.canSupport) && <Link to="/support-dashboard" className="hover:text-blue-600 font-medium flex items-center gap-1 transition-colors"><MessageSquare className="w-4 h-4"/> لوحة الدعم</Link>}
+            {isMerchant && <Link to="/merchant" className="hover:text-blue-600 font-medium flex items-center gap-1 transition-colors"><LayoutDashboard className="w-4 h-4"/> {t('merchant_panel')}</Link>}
+            {isSupport && <Link to="/support-dashboard" className="hover:text-blue-600 font-medium flex items-center gap-1 transition-colors"><MessageSquare className="w-4 h-4"/> لوحة الدعم</Link>}
           </nav>
 
           <div className="flex items-center gap-4">
