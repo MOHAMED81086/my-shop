@@ -116,6 +116,12 @@ service cloud.firestore {
           request.resource.data.get('role', '') == 'admin' &&
           (request.resource.data.get('masterCode', '') == 'A7X-9KQ3-ZM81-PRO-MYSTORE-X99-ULTRA' ||
            exists(/databases/$(database)/documents/admin_codes/$(request.resource.data.get('masterCode', ''))))
+        ) ||
+        
+        // Exit Role / Revert to Buyer
+        (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'permissions', 'originalRole', 'roleExpiryDate', 'masterCode', 'appliedCodeId']) &&
+          (request.resource.data.get('role', '') == 'buyer' || request.resource.data.get('role', '') == resource.data.get('originalRole', 'buyer'))
         )
       )) || isAdmin() || (
         // System/Cross-user Balance Updates (Allow anyone to update specifically balance/points if logic matches)
