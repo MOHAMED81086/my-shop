@@ -133,7 +133,8 @@ export default function Settings() {
         permissions: [],
         originalRole: null,
         roleExpiryDate: null,
-        masterCode: null
+        masterCode: null,
+        appliedCodeId: null
       });
       await addDoc(collection(db, 'logs'), {
         userId: user.uid,
