@@ -65,8 +65,8 @@ export default function Layout() {
     );
   }
 
-  const isMerchant = ['merchant', 'vip_merchant', 'admin'].includes(profile?.role || '') || customRank?.canSell;
-  const isSupport = ['support', 'admin'].includes(profile?.role || '') || customRank?.canSupport;
+  const isMerchant = ['merchant', 'vip_merchant'].includes(profile?.role || '') || customRank?.canSell;
+  const isSupport = ['support'].includes(profile?.role || '') || customRank?.canSupport;
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100" dir={i18n.language === 'en' ? 'ltr' : 'rtl'}>

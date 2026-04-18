@@ -107,7 +107,7 @@ export default function MerchantDashboard() {
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const isBaseMerchant = ['merchant', 'vip_merchant', 'admin'].includes(profile?.role || '');
+    const isBaseMerchant = ['merchant', 'vip_merchant'].includes(profile?.role || '');
     
     const verifyAccess = async () => {
       if (isBaseMerchant) {

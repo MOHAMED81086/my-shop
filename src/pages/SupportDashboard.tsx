@@ -16,7 +16,7 @@ export default function SupportDashboard() {
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const isBaseSupport = ['support', 'admin'].includes(profile?.role || '');
+    const isBaseSupport = ['support'].includes(profile?.role || '');
     
     const verifyAccess = async () => {
       if (isBaseSupport) {
