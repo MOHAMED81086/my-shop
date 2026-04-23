@@ -175,13 +175,33 @@ export default function MerchantDashboard() {
           setWithdrawalMethods(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
 
-        return () => { unsubscribe(); unsubW(); unsubAds(); unsubSales(); unsubSettings(); unsubWM(); };
+        const qTrans = query(collection(db, 'wallet_transactions'), where('userId', '==', user.uid));
+        const unsubTrans = onSnapshot(qTrans, (snapshot) => {
+          const trans = snapshot.docs.map(doc => doc.data());
+          const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+          
+          let locked = 0;
+          trans.forEach(t => {
+            if (t.type === 'profit' && t.createdAt) {
+              const tDate = t.createdAt.toDate();
+              if (tDate > sevenDaysAgo) {
+                locked += Number(t.amount || 0);
+              }
+            }
+          });
+          setLockedBalance(locked);
+        });
+
+        return () => { unsubscribe(); unsubW(); unsubAds(); unsubSales(); unsubSettings(); unsubWM(); unsubTrans(); };
       }
     };
 
     const cleanup = initDashboard();
     return () => { cleanup.then(unsub => unsub?.()); };
   }, [user, profile]);
+
+  const [lockedBalance, setLockedBalance] = useState<number>(0);
+  const availableBalance = Math.max(0, (profile?.merchant_balance || 0) - lockedBalance);
 
   const [status, setStatus] = useState<'active' | 'draft'>('active');
 
@@ -365,21 +385,6 @@ export default function MerchantDashboard() {
   const handleWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !profile) return;
-    
-    // Anti-Scam System
-    if (!profile.firstProfitAt) {
-      toast.error('لا يمكنك السحب لعدم وجود أرباح سابقة مسجلة');
-      return;
-    }
-    
-    const firstProfitDate = profile.firstProfitAt.toDate();
-    const now = new Date();
-    const diffDays = (now.getTime() - firstProfitDate.getTime()) / (1000 * 60 * 60 * 24);
-    
-    if (diffDays < 7) {
-      toast.error('لا يمكنك السحب قبل مرور 7 أيام على أول ربح لك');
-      return;
-    }
 
     if (globalSettings.withdrawEnabled === false) {
       toast.error('🚫 السحب غير متاح حالياً');
@@ -392,12 +397,12 @@ export default function MerchantDashboard() {
     }
 
     const amount = Number(withdrawAmount);
-    if (amount < 100) {
-      toast.error('الحد الأدنى للسحب هو 100 ج.م');
+    if (amount < 1000) {
+      toast.error('الحد الأدنى للسحب هو 1,000 ج.م');
       return;
     }
-    if (amount > (profile.merchant_balance || 0)) {
-      toast.error('رصيد الأرباح غير كافٍ');
+    if (amount > availableBalance) {
+      toast.error('الرصيد المتاح للسحب غير كافٍ');
       return;
     }
 
@@ -524,8 +529,12 @@ export default function MerchantDashboard() {
               <Wallet className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">رصيد الأرباح</p>
-              <p className="text-2xl font-bold">{profile.merchant_balance?.toLocaleString() || 0} ج.م</p>
+              <p className="text-sm text-gray-500">رصيد الأرباح الكلي</p>
+              <p className="text-2xl font-bold">{profile?.merchant_balance?.toLocaleString() || 0} ج.م</p>
+              <div className="mt-1 flex gap-2 text-xs">
+                 <span className="text-green-500 font-bold">متاح: {availableBalance.toLocaleString()} ج.م</span>
+                 <span className="text-orange-500">معلق: {lockedBalance.toLocaleString()} ج.م</span>
+              </div>
             </div>
           </div>
         </div>
@@ -894,7 +903,7 @@ export default function MerchantDashboard() {
               <form onSubmit={handleWithdraw} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">المبلغ (ج.م)</label>
-                  <input type="number" required min="100" value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700" placeholder="الحد الأدنى 100" />
+                  <input type="number" required min="1000" value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700" placeholder="الحد الأدنى 1000" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">وسيلة السحب</label>
@@ -911,7 +920,7 @@ export default function MerchantDashboard() {
                 </div>
                 <div className="text-sm text-gray-500 bg-gray-50 dark:bg-gray-750 p-3 rounded-lg">
                   <p>سيتم خصم {globalSettings.withdrawFee ?? 0}% رسوم تحويل.</p>
-                  {withdrawAmount && Number(withdrawAmount) >= 100 && (
+                  {withdrawAmount && Number(withdrawAmount) >= 1000 && (
                     <p className="mt-1 font-bold text-gray-700 dark:text-gray-300">
                       الصافي: {(Number(withdrawAmount) * (1 - (globalSettings.withdrawFee ?? 0) / 100)).toFixed(2)} ج.م
                     </p>

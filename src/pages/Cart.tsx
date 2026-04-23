@@ -230,6 +230,15 @@ export default function Cart() {
               batch.update(doc(db, 'users', merchantId), {
                 merchant_balance: increment(profit)
               });
+              batch.set(doc(collection(db, 'wallet_transactions')), {
+                userId: merchantId,
+                type: 'profit',
+                amount: profit,
+                status: 'completed',
+                referenceId: orderId,
+                details: `أرباح من مبيعات سلة المشتريات`,
+                createdAt: serverTimestamp()
+              });
             }
             
             // 4. Increment Purchase Count (Trust System)

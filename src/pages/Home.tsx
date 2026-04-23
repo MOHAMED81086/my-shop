@@ -181,6 +181,15 @@ export default function Home() {
         batch.update(doc(db, 'users', product.merchantId), {
           merchant_balance: increment(finalPrice)
         });
+        batch.set(doc(collection(db, 'wallet_transactions')), {
+          userId: product.merchantId,
+          type: 'profit',
+          amount: finalPrice,
+          status: 'completed',
+          referenceId: orderId,
+          details: `ربح من مبيعات: ${product.title}`,
+          createdAt: serverTimestamp()
+        });
       }
 
       // 4. Record Wallet Transaction

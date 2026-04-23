@@ -707,6 +707,17 @@ export default function AdminDashboard() {
               updates.firstProfitAt = serverTimestamp();
             }
             await updateDoc(doc(db, 'users', merchantId), updates);
+            
+            await addDoc(collection(db, 'wallet_transactions'), {
+              userId: merchantId,
+              type: 'profit',
+              amount: profit,
+              status: 'completed',
+              referenceId: orderId,
+              details: `أرباح من مبيعات الطلب #${orderId} (موافقة الإدارة)`,
+              createdAt: serverTimestamp()
+            });
+
             // If it was suspicious, we also approve the buyer for this merchant
             if (previousStatus === 'pending_review') {
               await approveBuyerForMerchant(userId, merchantId);
